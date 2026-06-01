@@ -1,46 +1,29 @@
 # gdm-greeter-minimalism
 
-`gdm-greeter-minimalism` reduces the Ubuntu GDM greeter to a fast black login flow without the panel, quick settings, calendar, tray, accessibility menu, or user avatar.
+`gdm-greeter-minimalism` richtet den Ubuntu-GDM-Greeter als reduzierte Login-Oberfläche ein. Der Greeter nutzt eine neutrale Farbgebung, blendet GNOME-Shell-Bedienelemente aus und führt `Super+L` direkt zum Login-Greeter.
 
-## Scope
+## Dokumentation
 
-- removes the visible GNOME Shell greeter controls and user avatar
-- forces a black greeter background
-- preserves keyboard layout initialization
-- sends the lock-screen path straight to the authentication dialog
-- sets `Super+L` to `gdmflexiserver` for the calling user
-- restores the original state on demand
+Die vollständige Zielzustands-Dokumentation steht in [docs/description.md](docs/description.md).
 
-## Requirements
+## Bedienung
 
-- Ubuntu with GDM and GNOME Shell
-- `bash`
-- `python3`
-- `gjs`
-- `gresource`
-- `dconf`
-- `dbus-run-session`
-- `systemctl`
-- `gsettings`
-- `gdmflexiserver`
-- Python package `gdms`
-- root privileges for `apply` and `restore`
-
-## Usage
+Interaktiv:
 
 ```bash
-sudo ./scripts/gdm-greeter-minimalism.sh apply
-sudo ./scripts/gdm-greeter-minimalism.sh verify
-sudo ./scripts/gdm-greeter-minimalism.sh restore
+./scripts/gdm-greeter-minimalism.sh
 ```
 
-Use `--restart` with `apply` or `restore` to restart `gdm` immediately.
+Direkt:
 
-## Files
+```bash
+./scripts/gdm-greeter-minimalism.sh apply
+./scripts/gdm-greeter-minimalism.sh verify
+./scripts/gdm-greeter-minimalism.sh restore
+```
 
-- `scripts/gdm-greeter-minimalism.sh`: main script
-- `docs/description.md`: short project description
+`apply` und `restore` fordern bei Bedarf automatisch `sudo` an. Mit `--restart` wird `gdm` nach `apply` oder `restore` direkt neu gestartet.
 
-## License
+## Lizenz
 
-GPL-3.0-only. See `LICENSE`.
+GPL-3.0-only. Siehe [LICENSE](LICENSE).

@@ -21,6 +21,14 @@ gdm_input_state="/etc/gdm3/.ggm-gdm-input-sources.state"
 greeter_background_begin="# ggm-managed-greeter-background begin"
 greeter_background_end="# ggm-managed-greeter-background end"
 gdm_background_state="/etc/gdm3/.ggm-gdm-background.state"
+greeter_background_color="#1d1d1d"
+greeter_accent_begin="# ggm-managed-greeter-accent begin"
+greeter_accent_end="# ggm-managed-greeter-accent end"
+gdm_accent_state="/etc/gdm3/.ggm-gdm-accent.state"
+greeter_accent_color="'slate'"
+greeter_focus_accent_color="#747474"
+greeter_focus_accent_fg_color="#ffffff"
+local_default_theme_preset="ubuntu25.10"
 user_shortcut_state="/etc/gdm3/.ggm-user-shortcut.state"
 user_shortcut_path="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/gdm-greeter-minimalism/"
 greeter_desktop_file="/usr/share/gdm/greeter/wayland-sessions/gnome-greeter.desktop"
@@ -34,18 +42,169 @@ resolved_sources=""
 resolved_mru_sources=""
 resolved_xkb_options=""
 resolved_input_origin=""
+ansi_reset=""
+ansi_bold=""
+ansi_dim=""
+ansi_red=""
+ansi_green=""
+ansi_blue=""
+
+setup_colors() {
+    if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
+        ansi_reset=$'\033[0m'
+        ansi_bold=$'\033[1m'
+        ansi_dim=$'\033[2m'
+        ansi_red=$'\033[31m'
+        ansi_green=$'\033[32m'
+        ansi_blue=$'\033[34m'
+    fi
+}
+
+print_step() {
+    printf '%b=>%b %s\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" "$1"
+}
+
+print_key_value() {
+    printf '  %b%-22s%b %s\n' "${ansi_dim}" "$1:" "${ansi_reset}" "$2"
+}
+
+read_prompt_key() {
+    local key
+
+    IFS= read -r -s -n 1 key || die "Eingabe abgebrochen."
+    printf '\n' >&2
+    printf '%s\n' "${key}"
+}
+
+print_installed_summary() {
+    local theme_origin
+
+    printf '\n%bOK%b %bHard-Override installiert%b\n' "${ansi_green}${ansi_bold}" "${ansi_reset}" "${ansi_bold}" "${ansi_reset}"
+    print_key_value "User-Shell-Drop-in" "${user_shell_dropin_file}"
+    print_key_value "GDM-Service-Drop-in" "${gdm_service_dropin_file}"
+    print_key_value "GDM-Drop-in" "$(gdm_dropin_file)"
+    print_key_value "Hintergrund" "${greeter_background_color}"
+    theme_origin="$(overlay_theme_origin || true)"
+    if [[ -n "${theme_origin}" ]]; then
+        print_key_value "Theme" "${theme_origin}"
+    fi
+    print_key_value "Layout" "${resolved_input_origin}"
+    if [[ -n "${resolved_target_user}" ]]; then
+        print_key_value "Shortcut" "<Super>l -> Greeter (${resolved_target_user})"
+    fi
+    print_key_value "Overlay" "${overlay_root}"
+}
+
+print_restored_summary() {
+    printf '\n%bOK%b %bHard-Override deaktiviert%b\n' "${ansi_green}${ansi_bold}" "${ansi_reset}" "${ansi_bold}" "${ansi_reset}"
+    print_key_value "User-Shell-Drop-in" "${user_shell_dropin_file}"
+    print_key_value "GDM-Service-Drop-in" "${gdm_service_dropin_file}"
+    print_key_value "GDM-Drop-in" "$(gdm_dropin_file)"
+}
 
 usage() {
-    printf '%s\n' "Nutzung: $0 apply [--restart] | verify | restore [--restart]" >&2
+    printf '%s\n' "Nutzung: $0 [apply [--restart] | verify | restore [--restart]]" >&2
 }
 
 die() {
-    printf '%s\n' "$1" >&2
+    printf '%b%s%b\n' "${ansi_red}${ansi_bold}" "$1" "${ansi_reset}" >&2
     exit 1
 }
 
-require_root() {
-    [[ "$(id -u)" -eq 0 ]] || die "Dieses Skript muss als root laufen."
+prompt_action() {
+    local choice
+
+    [[ -t 0 ]] || {
+        usage
+        exit 1
+    }
+
+    printf '\n%bGDM Greeter Minimalism%b\n' "${ansi_bold}" "${ansi_reset}" >&2
+    printf '%bTaste drücken, Enter ist nicht nötig.%b\n\n' "${ansi_dim}" "${ansi_reset}" >&2
+    printf '  %b[1]%b Anwenden          %b[a]%b\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" "${ansi_dim}" "${ansi_reset}" >&2
+    printf '  %b[2]%b Prüfen            %b[p]%b\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" "${ansi_dim}" "${ansi_reset}" >&2
+    printf '  %b[3]%b Wiederherstellen  %b[w]%b\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" "${ansi_dim}" "${ansi_reset}" >&2
+    printf '  %b[4]%b Abbrechen         %b[q]%b\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" "${ansi_dim}" "${ansi_reset}" >&2
+
+    while true; do
+        printf '\n%bAuswahl:%b ' "${ansi_blue}${ansi_bold}" "${ansi_reset}" >&2
+        choice="$(read_prompt_key)"
+        case "${choice,,}" in
+            1|a|apply|anwenden)
+                printf '%b=>%b Anwenden\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" >&2
+                printf 'apply\n'
+                return 0
+                ;;
+            2|p|v|verify|pruefen|prüfen)
+                printf '%b=>%b Prüfen\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" >&2
+                printf 'verify\n'
+                return 0
+                ;;
+            3|w|r|restore|wiederherstellen)
+                printf '%b=>%b Wiederherstellen\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" >&2
+                printf 'restore\n'
+                return 0
+                ;;
+            4|q|quit|exit|abbrechen)
+                printf '%b=>%b Abbrechen\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" >&2
+                printf 'exit\n'
+                return 0
+                ;;
+            *)
+                printf '%b%s%b\n' "${ansi_red}${ansi_bold}" "Ungültige Auswahl: ${choice}" "${ansi_reset}" >&2
+                ;;
+        esac
+    done
+}
+
+prompt_restart() {
+    local command="$1"
+    local choice
+
+    if [[ "${command}" != "apply" && "${command}" != "restore" ]]; then
+        printf '0\n'
+        return 0
+    fi
+
+    while true; do
+        printf '%bGDM neu starten?%b %b[j/N]%b ' "${ansi_bold}" "${ansi_reset}" "${ansi_dim}" "${ansi_reset}" >&2
+        choice="$(read_prompt_key)"
+        case "${choice,,}" in
+            j|ja|y|yes)
+                printf '%b=>%b Neustart aktiviert\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" >&2
+                printf '1\n'
+                return 0
+                ;;
+            ""|n|nein|no)
+                printf '%b=>%b Neustart übersprungen\n' "${ansi_blue}${ansi_bold}" "${ansi_reset}" >&2
+                printf '0\n'
+                return 0
+                ;;
+            *)
+                printf '%b%s%b\n' "${ansi_red}${ansi_bold}" "Bitte j oder n wählen." "${ansi_reset}" >&2
+                ;;
+        esac
+    done
+}
+
+ensure_root_for_action() {
+    local command="$1"
+    local restart_flag="$2"
+    local script_path
+    local args=()
+
+    [[ "$(id -u)" -eq 0 ]] && return 0
+    command -v sudo >/dev/null 2>&1 || die "sudo fehlt."
+    command -v readlink >/dev/null 2>&1 || die "readlink fehlt."
+
+    script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+    args+=("${command}")
+    if [[ "${restart_flag}" == "1" ]]; then
+        args+=("--restart")
+    fi
+
+    print_step "Root-Rechte anfordern"
+    exec sudo -- "${script_path}" "${args[@]}"
 }
 
 resolve_shell_resource() {
@@ -210,6 +369,17 @@ overlay_theme_file() {
     printf '%s/theme/gdm.css\n' "${overlay_root}"
 }
 
+overlay_theme_source_file() {
+    printf '%s/theme/source.env\n' "${overlay_root}"
+}
+
+overlay_theme_origin() {
+    local source_file
+    source_file="$(overlay_theme_source_file)"
+    [[ -f "${source_file}" ]] || return 1
+    sed -n 's/^origin=//p' "${source_file}" | head -n 1
+}
+
 resolve_target_user() {
     if [[ -n "${resolved_target_user}" ]]; then
         return 0
@@ -270,6 +440,28 @@ user_gsettings_reset() {
     local key="$3"
 
     run_in_user_session "${target_user}" gsettings reset "${schema}" "${key}"
+}
+
+run_gdm_dconf_write() {
+    local key="$1"
+    local output
+    shift
+
+    if ! output="$(runuser -u gdm -- dbus-run-session dconf write "${key}" "$@" 2>&1)"; then
+        [[ -n "${output}" ]] && printf '%s\n' "${output}" >&2
+        die "dconf write fehlgeschlagen: ${key}"
+    fi
+}
+
+run_gjs_check() {
+    local env_value="$1"
+    local script="$2"
+    local output
+
+    if ! output="$(G_RESOURCE_OVERLAYS="${env_value}" gjs -c "${script}" 2>&1)"; then
+        [[ -n "${output}" ]] && printf '%s\n' "${output}" >&2
+        die "GResource-Check fehlgeschlagen."
+    fi
 }
 
 resolve_input_sources() {
@@ -547,7 +739,7 @@ PY
 }
 
 write_greeter_background() {
-    python3 - "${greeter_dconf_file}" "${greeter_background_begin}" "${greeter_background_end}" <<'PY'
+    python3 - "${greeter_dconf_file}" "${greeter_background_begin}" "${greeter_background_end}" "${greeter_background_color}" <<'PY'
 import pathlib
 import re
 import sys
@@ -555,6 +747,7 @@ import sys
 target = pathlib.Path(sys.argv[1])
 begin = sys.argv[2]
 end = sys.argv[3]
+background_color = sys.argv[4]
 
 content = target.read_text(encoding="utf-8")
 pattern = re.compile(rf"\n?{re.escape(begin)}\n.*?{re.escape(end)}\n?", re.S)
@@ -565,12 +758,12 @@ block = (
     "picture-options='none'\n"
     "picture-uri=''\n"
     "picture-uri-dark=''\n"
-    "primary-color='#000000'\n"
-    "secondary-color='#000000'\n"
+    f"primary-color='{background_color}'\n"
+    f"secondary-color='{background_color}'\n"
     "color-shading-type='solid'\n"
     "\n"
     "[com/ubuntu/login-screen]\n"
-    "background-color='#000000'\n"
+    f"background-color='{background_color}'\n"
     "background-picture-uri=''\n"
     "background-repeat='default'\n"
     "background-size='default'\n"
@@ -584,6 +777,51 @@ PY
 
 remove_greeter_background() {
     python3 - "${greeter_dconf_file}" "${greeter_background_begin}" "${greeter_background_end}" <<'PY'
+import pathlib
+import re
+import sys
+
+target = pathlib.Path(sys.argv[1])
+begin = sys.argv[2]
+end = sys.argv[3]
+
+content = target.read_text(encoding="utf-8")
+pattern = re.compile(rf"\n?{re.escape(begin)}\n.*?{re.escape(end)}\n?", re.S)
+content = re.sub(pattern, "\n", content).rstrip()
+target.write_text(f"{content}\n", encoding="utf-8")
+PY
+
+    "${gdm_generate_config}"
+}
+
+write_greeter_accent() {
+    python3 - "${greeter_dconf_file}" "${greeter_accent_begin}" "${greeter_accent_end}" "${greeter_accent_color}" <<'PY'
+import pathlib
+import re
+import sys
+
+target = pathlib.Path(sys.argv[1])
+begin = sys.argv[2]
+end = sys.argv[3]
+accent_color = sys.argv[4]
+
+content = target.read_text(encoding="utf-8")
+pattern = re.compile(rf"\n?{re.escape(begin)}\n.*?{re.escape(end)}\n?", re.S)
+content = re.sub(pattern, "\n", content).rstrip()
+block = (
+    f"{begin}\n"
+    "[org/gnome/desktop/interface]\n"
+    f"accent-color={accent_color}\n"
+    f"{end}\n"
+)
+target.write_text(f"{content}\n\n{block}", encoding="utf-8")
+PY
+
+    "${gdm_generate_config}"
+}
+
+remove_greeter_accent() {
+    python3 - "${greeter_dconf_file}" "${greeter_accent_begin}" "${greeter_accent_end}" <<'PY'
 import pathlib
 import re
 import sys
@@ -636,9 +874,9 @@ PY
 
 apply_gdm_input_sources() {
     backup_gdm_input_sources
-    runuser -u gdm -- dbus-run-session dconf write /org/gnome/desktop/input-sources/sources "${resolved_sources}"
-    runuser -u gdm -- dbus-run-session dconf write /org/gnome/desktop/input-sources/mru-sources "${resolved_mru_sources}"
-    runuser -u gdm -- dbus-run-session dconf write /org/gnome/desktop/input-sources/xkb-options "${resolved_xkb_options}"
+    run_gdm_dconf_write /org/gnome/desktop/input-sources/sources "${resolved_sources}"
+    run_gdm_dconf_write /org/gnome/desktop/input-sources/mru-sources "${resolved_mru_sources}"
+    run_gdm_dconf_write /org/gnome/desktop/input-sources/xkb-options "${resolved_xkb_options}"
 }
 
 backup_gdm_background() {
@@ -683,16 +921,46 @@ PY
 
 apply_gdm_background() {
     backup_gdm_background
-    runuser -u gdm -- dbus-run-session dconf write /org/gnome/desktop/background/picture-options "'none'"
-    runuser -u gdm -- dbus-run-session dconf write /org/gnome/desktop/background/picture-uri "''"
-    runuser -u gdm -- dbus-run-session dconf write /org/gnome/desktop/background/picture-uri-dark "''"
-    runuser -u gdm -- dbus-run-session dconf write /org/gnome/desktop/background/primary-color "'#000000'"
-    runuser -u gdm -- dbus-run-session dconf write /org/gnome/desktop/background/secondary-color "'#000000'"
-    runuser -u gdm -- dbus-run-session dconf write /org/gnome/desktop/background/color-shading-type "'solid'"
-    runuser -u gdm -- dbus-run-session dconf write /com/ubuntu/login-screen/background-color "'#000000'"
-    runuser -u gdm -- dbus-run-session dconf write /com/ubuntu/login-screen/background-picture-uri "''"
-    runuser -u gdm -- dbus-run-session dconf write /com/ubuntu/login-screen/background-repeat "'default'"
-    runuser -u gdm -- dbus-run-session dconf write /com/ubuntu/login-screen/background-size "'default'"
+    run_gdm_dconf_write /org/gnome/desktop/background/picture-options "'none'"
+    run_gdm_dconf_write /org/gnome/desktop/background/picture-uri "''"
+    run_gdm_dconf_write /org/gnome/desktop/background/picture-uri-dark "''"
+    run_gdm_dconf_write /org/gnome/desktop/background/primary-color "'${greeter_background_color}'"
+    run_gdm_dconf_write /org/gnome/desktop/background/secondary-color "'${greeter_background_color}'"
+    run_gdm_dconf_write /org/gnome/desktop/background/color-shading-type "'solid'"
+    run_gdm_dconf_write /com/ubuntu/login-screen/background-color "'${greeter_background_color}'"
+    run_gdm_dconf_write /com/ubuntu/login-screen/background-picture-uri "''"
+    run_gdm_dconf_write /com/ubuntu/login-screen/background-repeat "'default'"
+    run_gdm_dconf_write /com/ubuntu/login-screen/background-size "'default'"
+}
+
+backup_gdm_accent() {
+    [[ -f "${gdm_accent_state}" ]] && return 0
+
+    python3 - "${gdm_accent_state}" <<'PY'
+import json
+import pathlib
+import subprocess
+import sys
+
+state_path = pathlib.Path(sys.argv[1])
+key = "/org/gnome/desktop/interface/accent-color"
+proc = subprocess.run(
+    ["runuser", "-u", "gdm", "--", "dbus-run-session", "dconf", "read", key],
+    text=True,
+    capture_output=True,
+    check=False,
+)
+if proc.returncode not in (0, 1):
+    raise SystemExit(proc.stderr.strip() or f"dconf read fehlgeschlagen: {key}")
+
+value = proc.stdout.strip()
+state_path.write_text(json.dumps({"accent-color": value if value else None}), encoding="utf-8")
+PY
+}
+
+apply_gdm_accent() {
+    backup_gdm_accent
+    run_gdm_dconf_write /org/gnome/desktop/interface/accent-color "${greeter_accent_color}"
 }
 
 restore_gdm_input_sources() {
@@ -720,7 +988,9 @@ for name, key in keys.items():
         command = ["runuser", "-u", "gdm", "--", "dbus-run-session", "dconf", "reset", key]
     else:
         command = ["runuser", "-u", "gdm", "--", "dbus-run-session", "dconf", "write", key, value]
-    subprocess.run(command, check=True)
+    proc = subprocess.run(command, text=True, capture_output=True, check=False)
+    if proc.returncode != 0:
+        raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or f"dconf restore fehlgeschlagen: {key}")
 PY
 
     rm -f "${gdm_input_state}"
@@ -758,10 +1028,40 @@ for name, key in keys.items():
         command = ["runuser", "-u", "gdm", "--", "dbus-run-session", "dconf", "reset", key]
     else:
         command = ["runuser", "-u", "gdm", "--", "dbus-run-session", "dconf", "write", key, value]
-    subprocess.run(command, check=True)
+    proc = subprocess.run(command, text=True, capture_output=True, check=False)
+    if proc.returncode != 0:
+        raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or f"dconf restore fehlgeschlagen: {key}")
 PY
 
     rm -f "${gdm_background_state}"
+}
+
+restore_gdm_accent() {
+    python3 - "${gdm_accent_state}" <<'PY'
+import json
+import pathlib
+import subprocess
+import sys
+
+state_path = pathlib.Path(sys.argv[1])
+key = "/org/gnome/desktop/interface/accent-color"
+
+if state_path.exists():
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+else:
+    state = {"accent-color": None}
+
+value = state.get("accent-color")
+if value is None:
+    command = ["runuser", "-u", "gdm", "--", "dbus-run-session", "dconf", "reset", key]
+else:
+    command = ["runuser", "-u", "gdm", "--", "dbus-run-session", "dconf", "write", key, value]
+proc = subprocess.run(command, text=True, capture_output=True, check=False)
+if proc.returncode != 0:
+    raise SystemExit(proc.stderr.strip() or proc.stdout.strip() or f"dconf restore fehlgeschlagen: {key}")
+PY
+
+    rm -f "${gdm_accent_state}"
 }
 
 apply_greeter_desktop_environment() {
@@ -868,18 +1168,32 @@ PY
 
 write_overlay_sources() {
     local active_theme
+    local target_home=""
     active_theme="$(active_theme_path)"
+    resolve_target_user
+    if [[ -n "${resolved_target_user}" ]]; then
+        target_home="$(getent passwd "${resolved_target_user}" | awk -F: '{print $6}')"
+        [[ -n "${target_home}" ]] || die "Home-Verzeichnis für ${resolved_target_user} nicht ermittelt."
+    fi
 
     install -d -m755 "${overlay_root}/ui" "${overlay_root}/gdm" "${overlay_root}/misc" "${overlay_root}/theme"
 
-    python3 - "${shell_resource}" "${active_theme}" "${overlay_root}" <<'PY'
+    python3 - "${shell_resource}" "${active_theme}" "${overlay_root}" "${greeter_background_color}" "${target_home}" "${local_default_theme_preset}" "${greeter_focus_accent_color}" "${greeter_focus_accent_fg_color}" <<'PY'
+import hashlib
 import pathlib
+import re
+import shlex
 import subprocess
 import sys
 
 shell_resource = sys.argv[1]
 theme_resource = sys.argv[2]
 overlay_root = pathlib.Path(sys.argv[3])
+greeter_background_color = sys.argv[4]
+target_home = pathlib.Path(sys.argv[5]) if sys.argv[5] else None
+local_default_theme_preset = sys.argv[6]
+greeter_focus_accent_color = sys.argv[7]
+greeter_focus_accent_fg_color = sys.argv[8]
 
 
 def extract(resource: str) -> str:
@@ -889,10 +1203,98 @@ def extract(resource: str) -> str:
     )
 
 
+def extract_from(resource_file: pathlib.Path | str, resource: str) -> str:
+    return subprocess.check_output(
+        ["gresource", "extract", str(resource_file), resource],
+        text=True,
+    )
+
+
+def sha256_file(path: pathlib.Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def parse_state_env(path: pathlib.Path) -> dict[str, str]:
+    state = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or "=" not in line:
+            continue
+        parts = shlex.split(line)
+        if len(parts) != 1 or "=" not in parts[0]:
+            raise SystemExit(f"custom-yaru-theme State ist ungültig: {path}")
+        key, value = parts[0].split("=", 1)
+        state[key] = value
+    return state
+
+
+def apply_local_ubuntu2510_preset(css: str) -> str:
+    for old, new in (
+        ("#36363a", "#1d1d1d"),
+        ("#47474c", "#2f2f2f"),
+        ("#48484c", "#313131"),
+        ("#525256", "#3b3b3b"),
+        ("#414144", "#292929"),
+        ("#424247", "#2a2a2a"),
+        ("#56565c", "#353535"),
+        ("#54545a", "#3f3f3f"),
+        ("#4a4a4f", "#323232"),
+        ("#727275", "#5e5e5e"),
+        ("#9b9b9d", "#8a8a8a"),
+        ("#868689", "#747474"),
+        ("#404045", "#353535"),
+        ("#4a4a50", "#3f3f3f"),
+        ("#39393d", "#2d2d2d"),
+        ("#2e2e33", "#2f2f2f"),
+        ("#fafafb", "#f2f2f2"),
+        ("#dedee4", "#d8d8d8"),
+        ("#222226", "#222222"),
+    ):
+        css = css.replace(old, new)
+    return css
+
+
+def current_custom_yaru_css() -> tuple[str, str] | None:
+    if target_home is None:
+        return None
+    state_path = target_home / ".local" / "state" / "custom-yaru-theme" / "last-state.env"
+    if not state_path.exists():
+        return None
+    state = parse_state_env(state_path)
+    target_css = pathlib.Path(state.get("dark_css_target", ""))
+    expected_sha = state.get("target_css_sha256", "")
+    preset = state.get("preset", "unknown")
+    if not target_css.is_file():
+        raise SystemExit(f"custom-yaru-theme Ziel-CSS fehlt: {target_css}")
+    if expected_sha and sha256_file(target_css) != expected_sha:
+        raise SystemExit(f"custom-yaru-theme State passt nicht zum installierten CSS: {target_css}")
+    return target_css.read_text(encoding="utf-8"), f"custom-yaru-theme:{preset}"
+
+
+def default_greeter_css() -> tuple[str, str]:
+    css = extract_from(theme_resource, "/org/gnome/shell/theme/gdm.css")
+    css = apply_local_ubuntu2510_preset(css)
+    return css, f"local:{local_default_theme_preset}:default"
+
+
+def resolve_gdm_css() -> tuple[str, str]:
+    custom_css = current_custom_yaru_css()
+    if custom_css is not None:
+        return custom_css
+    return default_greeter_css()
+
+
 def replace_once(content: str, old: str, new: str, label: str) -> str:
     if old not in content:
         raise SystemExit(f"Patch-Block nicht gefunden: {label}")
     return content.replace(old, new, 1)
+
+
+def replace_once_pattern(content: str, pattern: str, replacement: str, label: str) -> str:
+    updated, count = re.subn(pattern, replacement, content, count=1)
+    if count != 1:
+        raise SystemExit(f"Patch-Block nicht gefunden: {label}")
+    return updated
 
 
 session_mode = extract("/org/gnome/shell/ui/sessionMode.js")
@@ -998,15 +1400,39 @@ login_dialog = replace_once(
     "",
     "loginDialog.js:sessionMenuButton",
 )
-
-gdm_css = extract("/org/gnome/shell/theme/gdm.css") if theme_resource == shell_resource else subprocess.check_output(
-    ["gresource", "extract", theme_resource, "/org/gnome/shell/theme/gdm.css"],
-    text=True,
+login_dialog = replace_once_pattern(
+    login_dialog,
+    r"    _updateCancelButton\(\) \{\n        let cancelVisible;\n\n(?:[^\n]*\n)*?        this\._authPrompt\.cancelButton\.visible = cancelVisible;\n    \}\n",
+    """    _updateCancelButton() {\n        let cancelVisible;\n\n        if (this._authPrompt.verificationStatus === AuthPrompt.AuthPromptStatus.NOT_VERIFYING &&\n            this._disableUserList)\n            cancelVisible = false;\n        else\n            cancelVisible = true;\n\n        this._authPrompt.cancelButton.visible = true;\n        this._authPrompt.cancelButton.reactive = cancelVisible;\n        this._authPrompt.cancelButton.can_focus = cancelVisible;\n        this._authPrompt.cancelButton.opacity = cancelVisible ? 255 : 0;\n    }\n""",
+    "loginDialog.js:stableCancelButtonAllocation",
 )
-gdm_css = replace_once(
+login_dialog = replace_once(
+    login_dialog,
+    """    _getCenterActorAllocation(dialogBox, actor) {\n        const actorBox = new Clutter.ActorBox();\n\n        let [, , natWidth, natHeight] = actor.get_preferred_size();\n        const centerX = dialogBox.x1 + (dialogBox.x2 - dialogBox.x1) / 2;\n        const centerY = dialogBox.y1 + (dialogBox.y2 - dialogBox.y1) / 2;\n\n        natWidth = Math.min(natWidth, dialogBox.x2 - dialogBox.x1);\n        natHeight = Math.min(natHeight, dialogBox.y2 - dialogBox.y1);\n\n        actorBox.x1 = Math.floor(centerX - natWidth / 2);\n        actorBox.y1 = Math.floor(centerY - natHeight / 2);\n        actorBox.x2 = actorBox.x1 + natWidth;\n        actorBox.y2 = actorBox.y1 + natHeight;\n\n        return actorBox;\n    }\n""",
+    """    _getCenterActorAllocation(dialogBox, actor) {\n        const actorBox = new Clutter.ActorBox();\n\n        let [, , natWidth, natHeight] = actor.get_preferred_size();\n        const centerX = dialogBox.x1 + (dialogBox.x2 - dialogBox.x1) / 2;\n        const centerY = dialogBox.y1 + (dialogBox.y2 - dialogBox.y1) / 2;\n        let anchorHeight = natHeight;\n\n        if (actor === this._authPrompt && this._authPrompt._mainBox)\n            [, anchorHeight] = this._authPrompt._mainBox.get_preferred_height(natWidth);\n\n        natWidth = Math.min(natWidth, dialogBox.x2 - dialogBox.x1);\n        natHeight = Math.min(natHeight, dialogBox.y2 - dialogBox.y1);\n        anchorHeight = Math.min(anchorHeight, natHeight);\n\n        actorBox.x1 = Math.floor(centerX - natWidth / 2);\n        actorBox.y1 = Math.floor(centerY - anchorHeight / 2);\n        actorBox.x2 = actorBox.x1 + natWidth;\n        actorBox.y2 = actorBox.y1 + natHeight;\n\n        return actorBox;\n    }\n""",
+    "loginDialog.js:centerAuthPromptEntry",
+)
+
+gdm_css, theme_origin = resolve_gdm_css()
+gdm_css = re.sub(r"(-st-accent-color\s*:\s*)[^;]+;", rf"\g<1>{greeter_focus_accent_color};", gdm_css)
+gdm_css = re.sub(r"(-st-accent-fg-color\s*:\s*)[^;]+;", rf"\g<1>{greeter_focus_accent_fg_color};", gdm_css)
+gdm_css = re.sub(r"-st-accent-color(?!\s*:)", greeter_focus_accent_color, gdm_css)
+gdm_css = re.sub(r"-st-accent-fg-color(?!\s*:)", greeter_focus_accent_fg_color, gdm_css)
+gdm_css = replace_once_pattern(
     gdm_css,
-    "#lockDialogGroup {\n  background-color: #222226; }\n",
-    "#lockDialogGroup {\n  background-color: #000000; }\n",
+    r"(?s)stage \{\n(?P<body>.*?)\}",
+    (
+        "stage {\n"
+        rf"\g<body>"
+        f"  -st-accent-color: {greeter_focus_accent_color};\n"
+        f"  -st-accent-fg-color: {greeter_focus_accent_fg_color}; }}"
+    ),
+    "gdm.css:stageAccent",
+)
+gdm_css = replace_once_pattern(
+    gdm_css,
+    r"#lockDialogGroup \{\n  background-color: #[0-9a-fA-F]{6}; \}\n",
+    f"#lockDialogGroup {{\n  background-color: {greeter_background_color}; }}\n",
     "gdm.css:lockDialogGroup",
 )
 
@@ -1018,6 +1444,7 @@ gdm_css = replace_once(
 (overlay_root / "gdm" / "authPrompt.js").write_text(auth_prompt, encoding="utf-8")
 (overlay_root / "gdm" / "loginDialog.js").write_text(login_dialog, encoding="utf-8")
 (overlay_root / "theme" / "gdm.css").write_text(gdm_css, encoding="utf-8")
+(overlay_root / "theme" / "source.env").write_text(f"origin={theme_origin}\n", encoding="utf-8")
 PY
 }
 
@@ -1065,6 +1492,7 @@ verify_overlay_resources() {
     [[ -f "$(overlay_auth_prompt_file)" ]] || die "Overlay-Datei fehlt: $(overlay_auth_prompt_file)"
     [[ -f "$(overlay_login_file)" ]] || die "Overlay-Datei fehlt: $(overlay_login_file)"
     [[ -f "$(overlay_theme_file)" ]] || die "Overlay-Datei fehlt: $(overlay_theme_file)"
+    [[ -f "$(overlay_theme_source_file)" ]] || die "Overlay-Theme-Quelle fehlt: $(overlay_theme_source_file)"
     [[ -f "${greeter_desktop_state}" ]] || die "Greeter-Desktop-State fehlt."
     grep -F "Exec=env G_RESOURCE_OVERLAYS=${env_value} gnome-session" "${greeter_desktop_file}" >/dev/null || die "Greeter-Desktop lädt kein G_RESOURCE_OVERLAYS."
 
@@ -1086,34 +1514,49 @@ verify_overlay_resources() {
     grep -F "this._showPrompt();" "$(overlay_unlock_file)" >/dev/null || die "unlockDialog-Fail-Override fehlt."
     grep -F "this._userWell.set_child(null);" "$(overlay_auth_prompt_file)" >/dev/null || die "authPrompt-Avatar-Override fehlt."
     grep -F "this._bottomButtonGroup.hide();" "$(overlay_login_file)" >/dev/null || die "loginDialog-Override fehlt."
-    grep -F "background-color: #000000;" "$(overlay_theme_file)" >/dev/null || die "Theme-Override ist nicht schwarz."
+    grep -F "this._authPrompt.cancelButton.opacity = cancelVisible ? 255 : 0;" "$(overlay_login_file)" >/dev/null || die "loginDialog-Cancel-Layout-Override fehlt."
+    grep -F "actor === this._authPrompt" "$(overlay_login_file)" >/dev/null || die "loginDialog-Zentrierungs-Override fehlt."
+    grep -F "background-color: ${greeter_background_color};" "$(overlay_theme_file)" >/dev/null || die "Theme-Override nutzt nicht die Greeter-Hintergrundfarbe."
+    grep -F -- "-st-accent-color: ${greeter_focus_accent_color};" "$(overlay_theme_file)" >/dev/null || die "Theme-Override nutzt nicht die neutrale Fokusfarbe."
+    grep -F "st-mix(-st-accent-color" "$(overlay_theme_file)" >/dev/null && die "Theme-Override enthält noch dynamische Fokus-Akzentfarbe."
     [[ -f "${gdm_input_state}" ]] || die "GDM-Input-State fehlt."
     [[ -f "${gdm_background_state}" ]] || die "GDM-Background-State fehlt."
+    [[ -f "${gdm_accent_state}" ]] || die "GDM-Accent-State fehlt."
     grep -F "${greeter_background_begin}" "${greeter_dconf_file}" >/dev/null || die "Greeter-Background-Override fehlt."
-    grep -F "background-color='#000000'" "${greeter_dconf_file}" >/dev/null || die "Greeter-Background ist nicht schwarz."
+    grep -F "background-color='${greeter_background_color}'" "${greeter_dconf_file}" >/dev/null || die "Greeter-Background nutzt nicht die Greeter-Hintergrundfarbe."
+    grep -F "${greeter_accent_begin}" "${greeter_dconf_file}" >/dev/null || die "Greeter-Accent-Override fehlt."
+    grep -F "accent-color=${greeter_accent_color}" "${greeter_dconf_file}" >/dev/null || die "Greeter-Accent ist nicht neutral."
     grep -F "${greeter_input_begin}" "${greeter_dconf_file}" >/dev/null || die "Greeter-Input-Override fehlt."
     grep -F "sources=" "${greeter_dconf_file}" >/dev/null || die "Greeter-Sources fehlen."
 
-    G_RESOURCE_OVERLAYS="${env_value}" gjs -c "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/sessionMode.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes(\"'gdm': {\") || !text.includes(\"'unlock-dialog': {\") || !text.includes(\"panelStyle: null,\") || !text.includes(\"right: ['keyboard'],\")) throw new Error('sessionMode lookup fehlgeschlagen');"
-    G_RESOURCE_OVERLAYS="${env_value}" gjs -c "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/panel.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('Main.layoutManager.panelBox.hide();') || !text.includes('Main.sessionMode.isLocked') || text.includes('const hasVisibleItems =')) throw new Error('panel lookup fehlgeschlagen');"
-    G_RESOURCE_OVERLAYS="${env_value}" gjs -c "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/misc/systemActions.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._actions.get(LOCK_SCREEN_ACTION_ID).available = showLock;') || !text.includes('Main.screenShield.switchToGreeter();') || text.includes('showLock && allowLockScreen') || text.includes('Main.screenShield.lock(true);')) throw new Error('systemActions lookup fehlgeschlagen');"
-    G_RESOURCE_OVERLAYS="${env_value}" gjs -c "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/screenShield.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('switchToGreeter()') || !text.includes('this.switchToGreeter();') || !text.includes('org.gnome.DisplayManager.LocalDisplayFactory') || !text.includes('CreateTransientDisplay') || !text.includes('this._greeterSwitchTimeoutId = GLib.timeout_add(') || !text.includes(\"St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, '')\") || !text.includes(\"St.Clipboard.get_default().set_text(St.ClipboardType.PRIMARY, '')\") || !text.includes('Gio.DBus.system.call(') || text.includes('Util.spawn([') || text.includes('this.lock(true);') || text.includes('Screen lock is locked down')) throw new Error('screenShield lookup fehlgeschlagen');"
-    G_RESOURCE_OVERLAYS="${env_value}" gjs -c "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/unlockDialog.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._activePage = this._promptBox;') || !text.includes('this._adjustment.value = 1;') || text.includes('this._showClock();\\n\\n        this.allowCancel = false;')) throw new Error('unlockDialog lookup fehlgeschlagen');"
-    G_RESOURCE_OVERLAYS="${env_value}" gjs -c "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/gdm/authPrompt.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._userWell.set_child(null);') || !text.includes('visible: false,')) throw new Error('authPrompt lookup fehlgeschlagen');"
-    G_RESOURCE_OVERLAYS="${env_value}" gjs -c "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/gdm/loginDialog.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._bottomButtonGroup.hide();') || !text.includes('this._a11yMenuButton = null;')) throw new Error('loginDialog lookup fehlgeschlagen');"
-    G_RESOURCE_OVERLAYS="${env_value}" gjs -c "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/theme/gdm.css', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('#lockDialogGroup {') || !text.includes('background-color: #000000;')) throw new Error('theme lookup fehlgeschlagen');"
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/sessionMode.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes(\"'gdm': {\") || !text.includes(\"'unlock-dialog': {\") || !text.includes(\"panelStyle: null,\") || !text.includes(\"right: ['keyboard'],\")) throw new Error('sessionMode lookup fehlgeschlagen');"
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/panel.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('Main.layoutManager.panelBox.hide();') || !text.includes('Main.sessionMode.isLocked') || text.includes('const hasVisibleItems =')) throw new Error('panel lookup fehlgeschlagen');"
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/misc/systemActions.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._actions.get(LOCK_SCREEN_ACTION_ID).available = showLock;') || !text.includes('Main.screenShield.switchToGreeter();') || text.includes('showLock && allowLockScreen') || text.includes('Main.screenShield.lock(true);')) throw new Error('systemActions lookup fehlgeschlagen');"
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/screenShield.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('switchToGreeter()') || !text.includes('this.switchToGreeter();') || !text.includes('org.gnome.DisplayManager.LocalDisplayFactory') || !text.includes('CreateTransientDisplay') || !text.includes('this._greeterSwitchTimeoutId = GLib.timeout_add(') || !text.includes(\"St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, '')\") || !text.includes(\"St.Clipboard.get_default().set_text(St.ClipboardType.PRIMARY, '')\") || !text.includes('Gio.DBus.system.call(') || text.includes('Util.spawn([') || text.includes('this.lock(true);') || text.includes('Screen lock is locked down')) throw new Error('screenShield lookup fehlgeschlagen');"
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/unlockDialog.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._activePage = this._promptBox;') || !text.includes('this._adjustment.value = 1;') || text.includes('this._showClock();\\n\\n        this.allowCancel = false;')) throw new Error('unlockDialog lookup fehlgeschlagen');"
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/gdm/authPrompt.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._userWell.set_child(null);') || !text.includes('visible: false,')) throw new Error('authPrompt lookup fehlgeschlagen');"
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/gdm/loginDialog.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._bottomButtonGroup.hide();') || !text.includes('this._a11yMenuButton = null;') || !text.includes('this._authPrompt.cancelButton.opacity = cancelVisible ? 255 : 0;') || !text.includes('actor === this._authPrompt') || !text.includes('centerY - anchorHeight / 2')) throw new Error('loginDialog lookup fehlgeschlagen');"
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/theme/gdm.css', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('#lockDialogGroup {') || !text.includes('background-color: ${greeter_background_color};') || !text.includes('background-color: #353535;') || !text.includes('-st-accent-color: ${greeter_focus_accent_color};') || text.includes('st-mix(-st-accent-color')) throw new Error('theme lookup fehlgeschlagen');"
 }
 
 apply_override() {
+    print_step "Overlay schreiben"
     restore_legacy_override_if_needed
     write_overlay_sources
+    print_step "Greeter-Konfiguration schreiben"
     write_greeter_background
+    write_greeter_accent
     write_greeter_input_sources
+    print_step "gdm-dconf setzen"
     apply_gdm_background
+    apply_gdm_accent
     apply_gdm_input_sources
+    print_step "Shortcut und Session aktualisieren"
     apply_user_shortcut
     apply_greeter_desktop_environment
+    print_step "Systemd-Drop-ins schreiben"
     write_dropins
+    print_step "Installation pruefen"
     verify_overlay
 }
 
@@ -1142,21 +1585,24 @@ verify_overlay() {
         shortcut_path="${shortcut%%$'\t'*}"
         shortcut_command="${shortcut#*$'\t'}"
         [[ "${shortcut_command}" == "${greeter_command_setting}" ]] || die "Super+L zeigt nicht auf den Greeter: ${shortcut_path} -> ${shortcut_command}"
-
-        printf 'Hard-Override installiert.\nUser-Shell-Drop-in: %s\nGDM-Service-Drop-in: %s\nGDM-Drop-in: %s\nGreeter-Hintergrund: schwarz\nGreeter-Layout: %s\nShortcut: <Super>l -> Greeter (%s)\nOverlay: %s\n' "${user_shell_dropin_file}" "${gdm_service_dropin_file}" "$(gdm_dropin_file)" "${resolved_input_origin}" "${resolved_target_user}" "${overlay_root}"
-        return 0
     fi
 
-    printf 'Hard-Override installiert.\nUser-Shell-Drop-in: %s\nGDM-Service-Drop-in: %s\nGDM-Drop-in: %s\nGreeter-Hintergrund: schwarz\nGreeter-Layout: %s\nOverlay: %s\n' "${user_shell_dropin_file}" "${gdm_service_dropin_file}" "$(gdm_dropin_file)" "${resolved_input_origin}" "${overlay_root}"
+    print_installed_summary
 }
 
 restore_override() {
+    print_step "Systemd-Drop-ins entfernen"
     rm -f "${user_shell_dropin_file}" "${gdm_service_dropin_file}" "$(gdm_dropin_file)"
     systemctl daemon-reload
+    print_step "Greeter-Konfiguration entfernen"
     remove_greeter_background
+    remove_greeter_accent
     remove_greeter_input_sources
+    print_step "gdm-dconf wiederherstellen"
     restore_gdm_background
+    restore_gdm_accent
     restore_gdm_input_sources
+    print_step "Shortcut und Session wiederherstellen"
     restore_user_shortcut
     restore_greeter_desktop_environment
     restore_legacy_override_if_needed
@@ -1173,6 +1619,9 @@ restore_override() {
     if [[ -f "${gdm_background_state}" ]]; then
         die "GDM-Background-State ist weiterhin aktiv."
     fi
+    if [[ -f "${gdm_accent_state}" ]]; then
+        die "GDM-Accent-State ist weiterhin aktiv."
+    fi
     if [[ -f "${user_shortcut_state}" ]]; then
         die "Shortcut-State ist weiterhin aktiv."
     fi
@@ -1185,17 +1634,21 @@ restore_override() {
     if grep -F "${greeter_background_begin}" "${greeter_dconf_file}" >/dev/null; then
         die "Greeter-Background-Override ist weiterhin aktiv."
     fi
+    if grep -F "${greeter_accent_begin}" "${greeter_dconf_file}" >/dev/null; then
+        die "Greeter-Accent-Override ist weiterhin aktiv."
+    fi
     if grep -F "${greeter_input_begin}" "${greeter_dconf_file}" >/dev/null; then
         die "Greeter-Input-Override ist weiterhin aktiv."
     fi
 
-    printf 'Hard-Override deaktiviert.\nUser-Shell-Drop-in entfernt: %s\nGDM-Service-Drop-in entfernt: %s\nGDM-Drop-in entfernt: %s\n' "${user_shell_dropin_file}" "${gdm_service_dropin_file}" "$(gdm_dropin_file)"
+    print_restored_summary
 }
 
 maybe_restart() {
     local restart_flag="$1"
 
     if [[ "${restart_flag}" == "1" ]]; then
+        print_step "gdm neu starten"
         systemctl restart gdm
     fi
 }
@@ -1204,16 +1657,21 @@ main() {
     local command="${1:-}"
     local restart_flag="0"
 
-    [[ -n "${command}" ]] || {
+    setup_colors
+
+    if [[ -z "${command}" ]]; then
+        command="$(prompt_action)"
+        [[ "${command}" != "exit" ]] || exit 0
+        restart_flag="$(prompt_restart "${command}")"
+    elif [[ "${command}" == "help" || "${command}" == "-h" || "${command}" == "--help" ]]; then
         usage
-        exit 1
-    }
-
-    shift || true
-
-    if [[ "${1:-}" == "--restart" ]]; then
-        restart_flag="1"
-        shift
+        exit 0
+    else
+        shift || true
+        if [[ "${1:-}" == "--restart" ]]; then
+            restart_flag="1"
+            shift
+        fi
     fi
 
     [[ "$#" -eq 0 ]] || {
@@ -1221,20 +1679,21 @@ main() {
         exit 1
     }
 
-    require_tools
-
     case "${command}" in
         apply)
-            require_root
+            ensure_root_for_action "${command}" "${restart_flag}"
+            require_tools
             acquire_lock
             apply_override
             maybe_restart "${restart_flag}"
             ;;
         verify)
+            require_tools
             verify_overlay
             ;;
         restore)
-            require_root
+            ensure_root_for_action "${command}" "${restart_flag}"
+            require_tools
             acquire_lock
             restore_override
             maybe_restart "${restart_flag}"
