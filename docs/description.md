@@ -1,27 +1,27 @@
 # GDM Greeter Minimalism
 
-## Zweck
+## Purpose
 
-`gdm-greeter-minimalism.sh` richtet den Ubuntu-GDM-Greeter als reduzierte Login-Oberfläche ein. Der Greeter zeigt keine GNOME-Shell-Bedienelemente, kein Panel, keine Quick-Settings, keinen Kalender, keine Barrierefreiheits-Schaltfläche und keinen Benutzeravatar. Benutzername und Passwort werden als zentrale Eingabefelder dargestellt.
+`gdm-greeter-minimalism.sh` configures the Ubuntu GDM greeter as a reduced login surface. The greeter shows no GNOME Shell controls, no panel, no quick settings, no calendar, no accessibility button, and no user avatar. Username and password are shown as centered input fields.
 
-## Bedienung
+## Usage
 
-Das Skript kann ohne Argumente gestartet werden. Im interaktiven Modus wird eine Aktion per einzelner Taste gewählt; `Enter` ist nicht nötig.
+The script can be started without arguments. In interactive mode, the action is selected with a single key; `Enter` is not required.
 
 ```bash
 ./scripts/gdm-greeter-minimalism.sh
 ```
 
-Verfügbare Aktionen:
+Available actions:
 
-- `1` oder `a`: Greeter-Minimalismus anwenden
-- `2` oder `p`: Installation prüfen
-- `3` oder `w`: Originalzustand wiederherstellen
-- `4` oder `q`: abbrechen
+- `1` or `a`: apply greeter minimalism
+- `2`, `p`, or `v`: verify the installation
+- `3`, `w`, or `r`: restore the original state
+- `4` or `q`: cancel
 
-Für `apply` und `restore` startet sich das Skript bei Bedarf automatisch über `sudo` neu. Danach wird optional abgefragt, ob `gdm` direkt neu gestartet werden soll.
+For `apply` and `restore`, the script automatically re-executes itself through `sudo` when needed. Interactive mode asks whether `gdm` should be restarted before privilege escalation.
 
-Der nichtinteraktive Modus bleibt verfügbar:
+Non-interactive mode remains available:
 
 ```bash
 ./scripts/gdm-greeter-minimalism.sh apply
@@ -31,15 +31,15 @@ Der nichtinteraktive Modus bleibt verfügbar:
 ./scripts/gdm-greeter-minimalism.sh restore --restart
 ```
 
-## Ausgabe
+## Output
 
-Die Ausgabe nutzt ANSI-Farben auf TTYs. Schritte werden mit `=>` ausgegeben, erfolgreiche Endzustände mit `OK`, Fehler rot und fett. Wenn `NO_COLOR` gesetzt ist, werden keine ANSI-Codes verwendet.
+The output uses ANSI colors on TTYs. Steps are printed with `=>`, successful final states with `OK`, and errors in bold red. If `NO_COLOR` is set, no ANSI codes are used.
 
-Erfolgreiche `dbus-run-session`- und `gjs`-Diagnoseausgaben werden ausgeblendet. Bei Fehlern wird die abgefangene Originalausgabe auf `stderr` geschrieben.
+Successful `dbus-run-session` and `gjs` diagnostic output is hidden. On failure, the captured original output is written to `stderr`.
 
-## Voraussetzungen
+## Requirements
 
-Benötigte Programme:
+The script checks these core commands before `apply`, `verify`, and `restore`:
 
 - `bash`
 - `chown`
@@ -58,27 +58,30 @@ Benötigte Programme:
 - `runuser`
 - `systemctl`
 
-Benötigte Systemdateien:
+It also uses standard system utilities such as `awk`, `cp`, `grep`, `head`, `id`, `rm`, and `sed`. `sudo` is required only for non-root `apply` and `restore` runs. `update-alternatives` is required only when an alternatives-based legacy CSS override is migrated.
+
+Required system files:
 
 - `/etc/gdm3/greeter.dconf-defaults`
 - `/usr/share/gdm/greeter/wayland-sessions/gnome-greeter.desktop`
-- eine installierte GNOME-Shell-Ressource `libshell-*.so`
-- ein aktives GDM-Theme unter `/usr/share/gnome-shell/gdm-theme.gresource` oder `/usr/share/gnome-shell/gdm3-theme.gresource`
+- an executable GDM `generate-config` at `/usr/share/gdm/generate-config`, `/usr/libexec/gdm/generate-config`, or `/usr/lib/gdm/generate-config`
+- an installed GNOME Shell resource library matching `libshell-*.so`
+- a theme resource readable by `gresource`; the lookup order is `/usr/share/gnome-shell/gdm-theme.gresource`, `/usr/share/gnome-shell/gdm3-theme.gresource`, then `/usr/share/gnome-shell/gnome-shell-theme.gresource`
 
-Für die Migration eines aktiven Legacy-CSS-Overrides wird zusätzlich das Python-Modul `gdms` benötigt.
+The Python module `gdms` is additionally required when an active legacy CSS override must be migrated.
 
-## Systemdateien
+## System Files
 
-Das Skript verwaltet folgende Dateien und Verzeichnisse:
+The script manages these files and directories:
 
-- Overlay-Verzeichnis: `/usr/local/share/gnome-shell-overrides/greeter-controls`
-- User-Shell-Drop-in: `/etc/systemd/user/org.gnome.Shell@wayland.service.d/90-disable-greeter-controls.conf`
-- GDM-Service-Drop-in: `/etc/systemd/system/gdm.service.d/90-disable-greeter-controls.conf`
-- GDM-User-Drop-in: `<gdm-home>/.config/systemd/user/org.gnome.Shell@wayland.service.d/90-disable-greeter-controls.conf`
-- Greeter-dconf-Datei: `/etc/gdm3/greeter.dconf-defaults`
-- Greeter-Desktop-Datei: `/usr/share/gdm/greeter/wayland-sessions/gnome-greeter.desktop`
+- Overlay directory: `/usr/local/share/gnome-shell-overrides/greeter-controls`
+- User shell drop-in: `/etc/systemd/user/org.gnome.Shell@wayland.service.d/90-disable-greeter-controls.conf`
+- GDM service drop-in: `/etc/systemd/system/gdm.service.d/90-disable-greeter-controls.conf`
+- GDM user drop-in: `<gdm-home>/.config/systemd/user/org.gnome.Shell@wayland.service.d/90-disable-greeter-controls.conf`
+- Greeter dconf file: `/etc/gdm3/greeter.dconf-defaults`
+- Greeter desktop file: `/usr/share/gdm/greeter/wayland-sessions/gnome-greeter.desktop`
 
-State-Dateien:
+State files:
 
 - `/etc/gdm3/.ggm-gdm-input-sources.state`
 - `/etc/gdm3/.ggm-gdm-background.state`
@@ -86,11 +89,11 @@ State-Dateien:
 - `/etc/gdm3/.ggm-user-shortcut.state`
 - `/etc/gdm3/.ggm-greeter-desktop.state`
 
-## GResource-Overlay
+## GResource Overlay
 
-Das Overlay wird über `G_RESOURCE_OVERLAYS=/org/gnome/shell=/usr/local/share/gnome-shell-overrides/greeter-controls` geladen. Diese Umgebung wird in drei systemd-Drop-ins und zusätzlich in der Greeter-Desktop-Datei gesetzt.
+The overlay is loaded through `G_RESOURCE_OVERLAYS=/org/gnome/shell=/usr/local/share/gnome-shell-overrides/greeter-controls`. This environment value is written to three systemd drop-ins and additionally into the greeter desktop file.
 
-Erzeugte Overlay-Dateien:
+Generated overlay files:
 
 - `ui/sessionMode.js`
 - `ui/panel.js`
@@ -102,128 +105,130 @@ Erzeugte Overlay-Dateien:
 - `theme/gdm.css`
 - `theme/source.env`
 
-## Greeter-Oberfläche
+## Greeter Surface
 
-`sessionMode.js` setzt im `gdm`- und `unlock-dialog`-Modus die Panel-Zonen auf leer oder nur Tastatur. `panelStyle` wird auf `null` gesetzt.
+`sessionMode.js` sets the panel zones in `gdm` and `unlock-dialog` mode to keyboard-only. `panelStyle` is set to `null`.
 
-`panel.js` blendet das Panel aus, sobald die Session im Greeter- oder Lock-Modus läuft. In normalen Sessions wird das Panel wieder angezeigt.
+`panel.js` hides the panel whenever the session is in greeter or locked mode. In normal sessions, the panel is shown again.
 
-`authPrompt.js` entfernt den sichtbaren Benutzeravatar und behält nur den Authentifizierungsfluss.
+`authPrompt.js` removes the visible user avatar and keeps only the authentication flow.
 
-`loginDialog.js` entfernt die unteren Zusatzschaltflächen, deaktiviert die sichtbare Barrierefreiheits-Schaltfläche und stabilisiert die Cancel-Button-Allokation. Die AuthPrompt-Allokation richtet sich an der Eingabezeile aus, damit Benutzername und Passwort horizontal und vertikal gleich zentriert sind.
+`loginDialog.js` removes the lower auxiliary buttons, disables the visible accessibility button, and stabilizes the cancel button allocation. The AuthPrompt allocation is aligned to the input row so username and password are centered at the same horizontal and vertical position.
 
-## Lock-Verhalten
+## Lock Behavior
 
-`systemActions.js` macht die Lock-Aktion verfügbar, solange die Session nicht bereits gesperrt oder im Greeter ist. Die Lock-Aktion ruft `Main.screenShield.switchToGreeter()` auf.
+`systemActions.js` makes the lock action available as long as the session is not already locked or in the greeter. The lock action calls `Main.screenShield.switchToGreeter()`.
 
-`screenShield.js` ergänzt `switchToGreeter()`. Die Methode löscht Clipboard und Primary Selection und ruft über den Systembus `org.gnome.DisplayManager.LocalDisplayFactory.CreateTransientDisplay` auf. Ein kurzer Timeout verhindert parallele Mehrfachaufrufe. Bei aktivem GNOME-Lockdown wird ebenfalls direkt zum Greeter gewechselt.
+`screenShield.js` adds `switchToGreeter()`. The method clears the clipboard and primary selection, then calls `org.gnome.DisplayManager.LocalDisplayFactory.CreateTransientDisplay` through the system bus. A short timeout prevents parallel duplicate calls. When GNOME lockdown is active, it also switches directly to the greeter.
 
-`unlockDialog.js` zeigt direkt den Prompt statt der Uhrseite. Fehlgeschlagene Authentifizierung führt zurück zum Prompt.
+`unlockDialog.js` shows the prompt directly instead of the clock page. Failed authentication returns to the prompt.
 
-## Farben und Theme
+## Colors and Theme
 
-Der Greeter-Hintergrund ist `#1d1d1d`.
+The greeter background is `#1d1d1d`.
 
-Der GDM-Accent-Wert wird in `dconf` und `greeter.dconf-defaults` auf `'slate'` gesetzt. Zusätzlich ersetzt das Overlay-CSS dynamische `-st-accent-color`-Verwendungen durch eine neutrale Fokusfarbe:
+The GDM accent value is set to `'slate'` in both `dconf` and `greeter.dconf-defaults`. Additionally, the overlay CSS replaces dynamic `-st-accent-color` usage with a neutral focus color:
 
-- Fokus-Akzent: `#747474`
-- Fokus-Vordergrund: `#ffffff`
+- Focus accent: `#747474`
+- Focus foreground: `#ffffff`
 
-Damit bleiben aktive Eingabefelder, Fokusrahmen und Selection-Farben neutral und übernehmen keine benutzerbezogene Akzentfarbe.
+This keeps active input fields, focus rings, and selection colors neutral and prevents them from inheriting a user-related accent color.
 
-Wenn beim aufrufenden Benutzer ein `custom-yaru-theme`-State existiert, wird das installierte Theme aus diesem State verwendet:
+If the calling user has a `custom-yaru-theme` state, the CSS file referenced by that state is used:
 
 - State: `<home>/.local/state/custom-yaru-theme/last-state.env`
-- validierte Felder: `dark_css_target`, `target_css_sha256`, `preset`
-- Theme-Quelle in `source.env`: `custom-yaru-theme:<preset>`
+- `dark_css_target` must point to an existing CSS file
+- `target_css_sha256` is checked when present
+- `preset` labels the recorded theme source
+- Theme source in `source.env`: `custom-yaru-theme:<preset>`
 
-Wenn kein gültiger `custom-yaru-theme`-State vorhanden ist, nutzt das Skript lokal hinterlegte `ubuntu25.10`-Farbwerte. Diese Werte liegen direkt im GDM-Skript und benötigen kein anderes Projekt. Die Theme-Quelle lautet dann `local:ubuntu25.10:default`.
+If no valid `custom-yaru-theme` state exists, the script uses locally embedded `ubuntu25.10` color values. These values live directly in the GDM script and do not depend on another project. The local preset maps upstream dark Yaru shell surfaces to neutral gray values and keeps common shell surfaces at `#353535`. The theme source is then `local:ubuntu25.10:default`.
 
-## Tastaturlayout
+## Keyboard Layout
 
-Die Greeter-Input-Sources werden aus dem aufrufenden Benutzerkontext übernommen:
+Greeter input sources are copied from the calling user's context:
 
 - `org.gnome.desktop.input-sources sources`
 - `org.gnome.desktop.input-sources mru-sources`
 - `org.gnome.desktop.input-sources xkb-options`
 
-Wenn kein aufrufender Benutzer ermittelt werden kann, wird das Systemlayout aus `localectl status` verwendet. Leere MRU-Sources werden auf die aktiven Sources gesetzt.
+If no calling user can be resolved, the system layout from `localectl status` is used. GNOME's empty MRU value `@a(ss) []` is replaced with the active sources.
 
-Die Werte werden in `/etc/gdm3/greeter.dconf-defaults` und direkt in der dconf-Datenbank des `gdm`-Benutzers geschrieben.
+The values are written to `/etc/gdm3/greeter.dconf-defaults` and directly into the `gdm` user's dconf database.
 
-## Benutzer-Shortcut
+## User Shortcut
 
-Für den aufrufenden Benutzer wird `Super+L` auf den Greeter-Pfad gesetzt. Der Befehl ist:
+For the calling user, `Super+L` is routed to the greeter path. The command is:
 
 ```bash
 gdbus call --system --dest org.gnome.DisplayManager --object-path /org/gnome/DisplayManager/LocalDisplayFactory --method org.gnome.DisplayManager.LocalDisplayFactory.CreateTransientDisplay
 ```
 
-Dabei werden diese Benutzerwerte gesichert und verwaltet:
+These user settings are backed up and managed:
 
 - `org.gnome.settings-daemon.plugins.media-keys screensaver`
 - `org.gnome.desktop.lockdown disable-lock-screen`
 - `org.gnome.settings-daemon.plugins.media-keys custom-keybindings`
-- Name, Befehl und Binding des verwalteten Custom-Keybindings
+- name, command, and binding of the managed custom keybinding
 
-Wenn `Super+L` bereits durch einen anderen Befehl belegt ist, bricht das Skript ab. Ein vorhandener verwalteter Greeter-Befehl oder ein älterer `gdmflexiserver`-Befehl wird akzeptiert.
+If `Super+L` is already assigned to another command, the script aborts. An existing managed greeter command or older `gdmflexiserver` command is accepted.
 
 ## Apply
 
-`apply` führt diese Schritte aus:
+`apply` performs these steps:
 
-1. Legacy-CSS-Override wiederherstellen, falls aktiv.
-2. GResource-Overlay-Dateien aus den installierten GNOME-Shell-Ressourcen erzeugen.
-3. Greeter-Hintergrund, Greeter-Accent und Input-Sources in `/etc/gdm3/greeter.dconf-defaults` schreiben.
-4. GDM-Konfiguration über `generate-config` aktualisieren.
-5. Aktuelle GDM-dconf-Werte sichern.
-6. Greeter-Hintergrund, Greeter-Accent und Input-Sources direkt für den `gdm`-Benutzer setzen.
-7. Benutzer-Shortcut sichern und `Super+L` setzen.
-8. Greeter-Desktop-Datei sichern und `G_RESOURCE_OVERLAYS` in `Exec=` setzen.
-9. systemd-Drop-ins schreiben und `systemctl daemon-reload` ausführen.
-10. Installation verifizieren.
-11. Optional `gdm` neu starten.
+1. Normalize an active legacy CSS override back to the stock GDM theme.
+2. Generate GResource overlay files from the installed GNOME Shell resources.
+3. Write greeter background, greeter accent, and input sources to `/etc/gdm3/greeter.dconf-defaults`.
+4. Refresh the GDM configuration through `generate-config`.
+5. Back up current GDM dconf values.
+6. Set greeter background, greeter accent, and input sources directly for the `gdm` user.
+7. Back up the user shortcut and set `Super+L`.
+8. Back up the greeter desktop file and add `G_RESOURCE_OVERLAYS` to `Exec=`.
+9. Write systemd drop-ins and run `systemctl daemon-reload`.
+10. Verify the installation.
+11. Optionally restart `gdm`.
 
 ## Verify
 
-`verify` prüft:
+`verify` checks:
 
-- alle Drop-ins
-- alle Overlay-Dateien
-- Greeter-Desktop-State und `Exec=env G_RESOURCE_OVERLAYS=...`
-- alle erwarteten JavaScript-Patches
-- neutralisierte CSS-Fokusfarbe
-- Greeter-Hintergrundfarbe
-- GDM-State-Dateien
-- verwaltete Blöcke in `/etc/gdm3/greeter.dconf-defaults`
-- GResource-Lookups über `gjs`
-- Shortcut- und Lockdown-Werte des aufrufenden Benutzers
-- Abwesenheit eines aktiven Legacy-CSS-Overrides
+- all drop-ins
+- all overlay files
+- greeter desktop state and `Exec=env G_RESOURCE_OVERLAYS=...`
+- all expected JavaScript patches
+- neutralized CSS focus color
+- greeter background color
+- GDM state files
+- managed blocks in `/etc/gdm3/greeter.dconf-defaults`
+- GResource lookups through `gjs`
+- shortcut and lockdown values for the calling user
+- absence of an active legacy CSS override
 
-Bei Erfolg wird eine Zusammenfassung mit Drop-ins, Hintergrund, Theme-Quelle, Layout, Shortcut und Overlay-Pfad ausgegeben.
+On success, a summary is printed with drop-ins, background, theme source, layout, shortcut, and overlay path.
 
 ## Restore
 
-`restore` führt diese Schritte aus:
+`restore` performs these steps:
 
-1. systemd-Drop-ins entfernen und `systemctl daemon-reload` ausführen.
-2. verwaltete Blöcke aus `/etc/gdm3/greeter.dconf-defaults` entfernen.
-3. GDM-Konfiguration über `generate-config` aktualisieren.
-4. GDM-dconf-Werte aus den State-Dateien wiederherstellen oder zurücksetzen.
-5. Benutzer-Shortcut aus dem State wiederherstellen.
-6. Greeter-Desktop-Datei aus dem State wiederherstellen.
-7. Legacy-CSS-Override wiederherstellen, falls aktiv.
-8. Restzustände prüfen.
-9. Optional `gdm` neu starten.
+1. Remove systemd drop-ins and run `systemctl daemon-reload`.
+2. Remove managed blocks from `/etc/gdm3/greeter.dconf-defaults`.
+3. Refresh the GDM configuration through `generate-config`.
+4. Restore or reset GDM dconf values from the state files.
+5. Restore the user shortcut from state.
+6. Restore the greeter desktop file from state.
+7. Normalize an active legacy CSS override back to the stock GDM theme.
+8. Check for leftover managed state.
+9. Optionally restart `gdm`.
 
-Nach erfolgreicher Wiederherstellung dürfen die verwalteten State-Dateien und Drop-ins nicht mehr vorhanden sein. Die Greeter-Desktop-Datei darf kein `G_RESOURCE_OVERLAYS=` mehr enthalten.
+After a successful restore, the managed state files and drop-ins must no longer exist. The greeter desktop file must no longer contain `G_RESOURCE_OVERLAYS=`. Generated overlay files can remain on disk because the loading paths are removed.
 
-## Legacy-CSS-Override
+## Legacy CSS Override
 
-Das Skript erkennt einen aktiven Legacy-Override über den CSS-Block `#panel.login-screen > * {`. Ist er aktiv, wird er aus dem Backup `/usr/share/gnome-shell/gnome-shell-theme.gresource.ggm-backup-greeter-controls` wiederhergestellt. Ein gespeicherter alternatives-State wird über `update-alternatives` reaktiviert.
+The script detects an active legacy override through the CSS block `#panel.login-screen > * {`. If it is active, it is restored from the backup `/usr/share/gnome-shell/gnome-shell-theme.gresource.ggm-backup-greeter-controls`. A stored alternatives state is reactivated through `update-alternatives`.
 
-## Fehlerverhalten
+## Error Behavior
 
-Das Skript läuft mit `set -euo pipefail`. Fehlende Programme, fehlende Systemdateien, nicht passende Patch-Blöcke, fremde Shortcut-Belegungen, inkonsistente Theme-States und fehlgeschlagene Verifikationen brechen die Ausführung ab.
+The script runs with `set -euo pipefail`. Missing commands, missing system files, unmatched patch blocks, conflicting shortcut assignments, inconsistent theme states, and failed verification checks abort execution.
 
-Erfolgreiche dconf- und GResource-Diagnoseausgaben werden unterdrückt. Fehlerausgaben bleiben sichtbar.
+Successful dconf and GResource diagnostic output is suppressed. Error output remains visible.

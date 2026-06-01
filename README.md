@@ -1,20 +1,20 @@
 # gdm-greeter-minimalism
 
-`gdm-greeter-minimalism` richtet den Ubuntu-GDM-Greeter als reduzierte Login-Oberfläche ein. Der Greeter nutzt eine neutrale Farbgebung, blendet GNOME-Shell-Bedienelemente aus und führt `Super+L` direkt zum Login-Greeter.
+`gdm-greeter-minimalism` configures the Ubuntu GDM greeter as a reduced login surface. The greeter uses neutral colors, hides GNOME Shell controls, and routes `Super+L` directly to the login greeter.
 
-## Dokumentation
+## Documentation
 
-Die vollständige Zielzustands-Dokumentation steht in [docs/description.md](docs/description.md).
+The full target-state documentation is available in [docs/description.md](docs/description.md).
 
-## Bedienung
+## Usage
 
-Interaktiv:
+Interactive:
 
 ```bash
 ./scripts/gdm-greeter-minimalism.sh
 ```
 
-Direkt:
+Direct:
 
 ```bash
 ./scripts/gdm-greeter-minimalism.sh apply
@@ -22,8 +22,8 @@ Direkt:
 ./scripts/gdm-greeter-minimalism.sh restore
 ```
 
-`apply` und `restore` fordern bei Bedarf automatisch `sudo` an. Mit `--restart` wird `gdm` nach `apply` oder `restore` direkt neu gestartet.
+`apply` and `restore` automatically request `sudo` when needed. With `--restart`, `gdm` is restarted immediately after `apply` or `restore`.
 
-## Lizenz
+## License
 
-GPL-3.0-only. Siehe [LICENSE](LICENSE).
+GPL-3.0-only. See [LICENSE](LICENSE).
