@@ -1,0 +1,9 @@
+Package: gdm-greeter-minimalism
+Version: 1.0.0
+Section: gnome
+Priority: optional
+Architecture: all
+Depends: dconf-cli, gdm3, gjs, gnome-shell, libglib2.0-bin, python3, systemd
+Maintainer: patchena <patchena@proton.me>
+Description: Minimalist GNOME Display Manager greeter
+ Installs and maintains a validated GNOME Shell resource overlay for GDM.

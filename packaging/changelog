@@ -1,0 +1,5 @@
+gdm-greeter-minimalism (1.0.0) unstable; urgency=medium
+
+  * Initial system package release.
+
+ -- patchena <patchena@proton.me>  Sun, 26 Jul 2026 12:04:14 +0300

@@ -1,0 +1,62 @@
+.TH GDM-GREETER-MINIMALISM 1 "2026-07-26" "gdm-greeter-minimalism 1.0.0" "Benutzerbefehle"
+.SH NAME
+gdm-greeter-minimalism \- minimalistische GDM-Oberfläche verwalten
+.SH SYNOPSIS
+.B gdm-greeter-minimalism
+.RI [ apply " [" \-\-restart "] | " verify " | " restore " [" \-\-restart ]]
+.SH BESCHREIBUNG
+.B gdm-greeter-minimalism
+erzeugt ein geprüftes GNOME-Shell-Ressourcen-Overlay für GDM, setzt die verwaltete Greeter-Konfiguration und leitet Super+L auf den GDM-Greeter um.
+.PP
+Ohne Argument wird die Aktion interaktiv ausgewählt.
+.SH BEFEHLE
+.TP
+.B apply
+Erzeugt und prüft ein zur installierten GNOME-Shell-Version passendes Overlay und aktiviert die Konfiguration atomar.
+.TP
+.B verify
+Prüft Overlay, GDM-Integration, dconf-Werte und die verwaltete Super+L-Belegung.
+.TP
+.B restore
+Entfernt die Systemintegration und stellt die gesicherten dconf- und Benutzereinstellungen wieder her.
+.TP
+.B \-\-restart
+Startet GDM nach
+.B apply
+oder
+.B restore
+neu. Laufende grafische Sitzungen werden dadurch beendet.
+.SH UPDATE-VERHALTEN
+Das installierte Debian-Paket registriert gezielte dpkg-Trigger für GDM- und GNOME-Shell-Ressourcen.
+Ein neuer Overlay-Kandidat wird vollständig geprüft, bevor der stabile Aktivpfad atomar umgeschaltet wird.
+.PP
+Bei Inkompatibilität wird ein geprüftes Stock-Overlay aktiviert und die eigene Startintegration entfernt.
+Der Paketvorgang meldet einen Fehler.
+Beim nächsten GNOME-Login erhält der verwaltete Benutzer einmalig eine Benachrichtigung für diesen Fehlerzustand.
+GDM wird durch den Trigger nicht neu gestartet.
+.SH DATEIEN
+.TP
+.I /usr/local/share/gnome-shell-overrides/greeter-controls/active
+Stabiler Aktivpfad des aktuell verwendeten Overlays.
+.TP
+.I /usr/local/share/gnome-shell-overrides/greeter-controls/releases
+Geprüfte angepasste Overlay-Versionen.
+.TP
+.I /usr/local/share/gnome-shell-overrides/greeter-controls/stock-releases
+Bytegenaue Overlay-Versionen der installierten Stock-Ressourcen.
+.TP
+.I /var/lib/gdm-greeter-minimalism/failure.json
+Lesbarer Fehlerzustand eines inkompatiblen Updates.
+.TP
+.I /etc/xdg/autostart/gdm-greeter-minimalism-notify.desktop
+Login-Benachrichtigung für den verwalteten Benutzer.
+.SH EXITSTATUS
+.TP
+.B 0
+Die angeforderte Aktion war erfolgreich.
+.TP
+.B 1
+Voraussetzungen, Prüfung, Aktivierung oder Wiederherstellung sind fehlgeschlagen.
+.SH SIEHE AUCH
+.BR gdm3 (8),
+.BR dpkg-trigger (1)
