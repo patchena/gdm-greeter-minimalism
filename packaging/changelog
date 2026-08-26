@@ -1,3 +1,9 @@
+gdm-greeter-minimalism (1.0.2) unstable; urgency=medium
+
+  * Show the greeter cancel button only during password input.
+
+ -- patchena <patchena@proton.me>  Wed, 26 Aug 2026 22:52:43 +0300
+
 gdm-greeter-minimalism (1.0.1) unstable; urgency=medium
 
   * Disable notifications in GDM login and unlock modes.
