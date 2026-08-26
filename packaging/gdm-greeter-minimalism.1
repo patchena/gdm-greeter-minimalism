@@ -1,4 +1,4 @@
-.TH GDM-GREETER-MINIMALISM 1 "2026-07-26" "gdm-greeter-minimalism 1.0.0" "Benutzerbefehle"
+.TH GDM-GREETER-MINIMALISM 1 "2026-08-26" "gdm-greeter-minimalism 1.0.1" "Benutzerbefehle"
 .SH NAME
 gdm-greeter-minimalism \- minimalistische GDM-Oberfläche verwalten
 .SH SYNOPSIS
@@ -7,6 +7,8 @@ gdm-greeter-minimalism \- minimalistische GDM-Oberfläche verwalten
 .SH BESCHREIBUNG
 .B gdm-greeter-minimalism
 erzeugt ein geprüftes GNOME-Shell-Ressourcen-Overlay für GDM, setzt die verwaltete Greeter-Konfiguration und leitet Super+L auf den GDM-Greeter um.
+.PP
+Benachrichtigungen sind im GDM-Login- und Unlock-Modus deaktiviert. Die normale Desktop-Sitzung bleibt unverändert.
 .PP
 Ohne Argument wird die Aktion interaktiv ausgewählt.
 .SH BEFEHLE
@@ -32,7 +34,7 @@ Ein neuer Overlay-Kandidat wird vollständig geprüft, bevor der stabile Aktivpf
 .PP
 Bei Inkompatibilität wird ein geprüftes Stock-Overlay aktiviert und die eigene Startintegration entfernt.
 Der Paketvorgang meldet einen Fehler.
-Beim nächsten GNOME-Login erhält der verwaltete Benutzer einmalig eine Benachrichtigung für diesen Fehlerzustand.
+Beim nächsten Login in die normale GNOME-Desktopsitzung erhält der verwaltete Benutzer einmalig eine Benachrichtigung für diesen Fehlerzustand. Der GDM-Login- und Unlock-Modus zeigt keine Benachrichtigungen.
 GDM wird durch den Trigger nicht neu gestartet.
 .SH DATEIEN
 .TP

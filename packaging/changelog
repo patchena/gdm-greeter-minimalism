@@ -1,3 +1,9 @@
+gdm-greeter-minimalism (1.0.1) unstable; urgency=medium
+
+  * Disable notifications in GDM login and unlock modes.
+
+ -- patchena <patchena@proton.me>  Wed, 26 Aug 2026 22:29:30 +0300
+
 gdm-greeter-minimalism (1.0.0) unstable; urgency=medium
 
   * Initial system package release.
