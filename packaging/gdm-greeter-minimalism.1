@@ -1,14 +1,14 @@
-.TH GDM-GREETER-MINIMALISM 1 "2026-08-26" "gdm-greeter-minimalism 1.0.2" "Benutzerbefehle"
+.TH GDM-GREETER-MINIMALISM 1 "2026-08-31" "gdm-greeter-minimalism 1.0.3" "Benutzerbefehle"
 .SH NAME
 gdm-greeter-minimalism \- minimalistische GDM-Oberfläche verwalten
 .SH SYNOPSIS
 .B gdm-greeter-minimalism
-.RI [ apply " [" \-\-restart "] | " verify " | " restore " [" \-\-restart ]]
+.RI [ apply " [" \-\-restart "] | " verify " | " lock " | " restore " [" \-\-restart ]]
 .SH BESCHREIBUNG
 .B gdm-greeter-minimalism
 erzeugt ein geprüftes GNOME-Shell-Ressourcen-Overlay für GDM, setzt die verwaltete Greeter-Konfiguration und leitet Super+L auf den GDM-Greeter um.
 .PP
-Benachrichtigungen sind im GDM-Login- und Unlock-Modus deaktiviert. Die normale Desktop-Sitzung bleibt unverändert.
+Benachrichtigungen sind im GDM-Login- und Unlock-Modus deaktiviert. Das Benachrichtigungsverhalten der normalen Desktop-Sitzung bleibt unverändert.
 .PP
 Der runde Zurück-Button ist nur bei der Passworteingabe sichtbar und aktiv.
 .PP
@@ -20,6 +20,9 @@ Erzeugt und prüft ein zur installierten GNOME-Shell-Version passendes Overlay u
 .TP
 .B verify
 Prüft Overlay, GDM-Integration, dconf-Werte und die verwaltete Super+L-Belegung.
+.TP
+.B lock
+Wechselt zu einer bestehenden GDM-Anmeldesitzung oder erzeugt bei Bedarf eine neue.
 .TP
 .B restore
 Entfernt die Systemintegration und stellt die gesicherten dconf- und Benutzereinstellungen wieder her.

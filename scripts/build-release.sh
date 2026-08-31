@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-version="1.0.2"
+version="1.0.3"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(readlink -f "${script_dir}/..")"
 release_dir="${project_root}/release/v${version}"
