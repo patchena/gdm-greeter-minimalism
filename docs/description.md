@@ -14,6 +14,7 @@ The project contains:
 - `scripts/gdm-greeter-minimalism.sh`: command source
 - `packaging/`: Debian metadata, maintainer scripts, triggers, autostart entry, and manual page
 - `scripts/build-release.sh`: versioned package builder
+- `docs/release.md`: release verification and publication procedure
 - `release/v1.0.4/`: package root and installable Debian package
 
 The package version is `1.0.4` and its architecture is `all`.
@@ -370,9 +371,15 @@ The package contains:
 - dpkg triggers
 - `postinst` and `prerm`
 - GNOME autostart notifier
-- project README and target-state documentation
+- project README, target-state documentation, and release procedure
 - Debian changelog and copyright metadata
 - compressed manual page
+
+## GitHub Distribution
+
+Each published version has an annotated immutable Git tag named `v<version>`. The GitHub Release uses the same name, points to the verified release commit, and contains the corresponding `.deb` from the versioned release directory.
+
+Release publication occurs only after the package build, installed verification, and required manual Greeter validation succeed. The complete procedure is defined in `docs/release.md`.
 
 ## Error Behavior
 

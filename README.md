@@ -39,8 +39,13 @@ Build the release package:
 
 The package root and `.deb` are written to `release/v1.0.4/`.
 
+After package and Greeter validation, push the release commit, create and push the annotated `v1.0.4` tag, and publish the matching `.deb` as a GitHub Release asset. Tags are immutable release points and are never reused.
+
+The complete build, verification, tag, and publication procedure is defined in [docs/release.md](docs/release.md).
+
 ## Documentation
 
 - Target state: [docs/description.md](docs/description.md)
+- Release process: [docs/release.md](docs/release.md)
 - Installed command reference: `man gdm-greeter-minimalism`
 - License: [GPL-3.0-only](LICENSE)
