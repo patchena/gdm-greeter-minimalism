@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+    configure|triggered)
+        if [ -f /var/lib/gdm-greeter-minimalism/enabled ] || [ -f /etc/gdm3/.ggm-user-shortcut.state ]; then
+            gdm-greeter-minimalism refresh
+        fi
+        ;;
+esac
+
+exit 0

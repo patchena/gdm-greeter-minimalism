@@ -1,3 +1,9 @@
+gdm-greeter-minimalism (1.0.4) unstable; urgency=medium
+
+  * Disable all greeter system sounds.
+
+ -- patchena <patchena@proton.me>  Fri, 04 Sep 2026 09:17:42 +0300
+
 gdm-greeter-minimalism (1.0.3) unstable; urgency=medium
 
   * Reuse the login session and prevent recursive greeter creation.

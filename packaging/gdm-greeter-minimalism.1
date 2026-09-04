@@ -1,4 +1,4 @@
-.TH GDM-GREETER-MINIMALISM 1 "2026-08-31" "gdm-greeter-minimalism 1.0.3" "Benutzerbefehle"
+.TH GDM-GREETER-MINIMALISM 1 "2026-09-04" "gdm-greeter-minimalism 1.0.4" "Benutzerbefehle"
 .SH NAME
 gdm-greeter-minimalism \- minimalistische GDM-Oberfläche verwalten
 .SH SYNOPSIS
@@ -9,6 +9,8 @@ gdm-greeter-minimalism \- minimalistische GDM-Oberfläche verwalten
 erzeugt ein geprüftes GNOME-Shell-Ressourcen-Overlay für GDM, setzt die verwaltete Greeter-Konfiguration und leitet Super+L auf den GDM-Greeter um.
 .PP
 Benachrichtigungen sind im GDM-Login- und Unlock-Modus deaktiviert. Das Benachrichtigungsverhalten der normalen Desktop-Sitzung bleibt unverändert.
+.PP
+Ereignis-, Eingabe-, System-Bell-, Lautstärke-, Netzteil- und Akkuwarnklänge sind im GDM-Greeter deaktiviert. Klangthemen und Klangeinstellungen normaler Desktop-Sitzungen bleiben unverändert.
 .PP
 Der runde Zurück-Button ist nur bei der Passworteingabe sichtbar und aktiv.
 .PP
@@ -54,6 +56,12 @@ Bytegenaue Overlay-Versionen der installierten Stock-Ressourcen.
 .TP
 .I /var/lib/gdm-greeter-minimalism/failure.json
 Lesbarer Fehlerzustand eines inkompatiblen Updates.
+.TP
+.I /usr/share/sounds/gdm-greeter-minimalism
+Klangthema mit deaktivierten direkten Greeter-Klangereignissen.
+.TP
+.I /usr/share/gdm/dconf/locks/99-gdm-greeter-minimalism
+Gesperrte GDM-Soundwerte für den lautlosen Greeter.
 .TP
 .I /etc/xdg/autostart/gdm-greeter-minimalism-notify.desktop
 Login-Benachrichtigung für den verwalteten Benutzer.
