@@ -35,7 +35,7 @@
 ## Stand
 
 - Vollständige Codeprüfung und abschließendes Astra-6-xhigh-Review fundfrei; installierter Minimalism-Stand 1.0.6.
-- Security-Chain-Codeprüfung ist abgeschlossen und als `fe6e3d4873cfa6a7acc975b9f796ca5990526083` gesichert. Deren produktive M2-Freigabe bleibt separat offen.
+- Security-Chain-Codeprüfung ist abgeschlossen und als `d912bfb30f9ec2951788ba0c6fa4f1eaafb5eacb` gesichert. Boot 1.023 und GDM 1.001 sind regulär installiert; M2-Migration und Aktivierung sind paketvalidiert. Physische Freigaben bleiben separat offen.
 
 ## Offene Prüfungen und Korrekturen
 
@@ -50,3 +50,4 @@
 - Die Super+L-Konfliktsuche prüft die vollständige Liste und lehnt fremde oder mehrdeutige exakte Treffer vor Backup und Einstellungsänderungen ab. Elf isolierte Regressiongruppen bestehen; unabhängige normale Nachprüfung einschließlich eindeutiger, fehlender und fremder Einzelbelegung ist fundfrei.
 - Dokumentations- und Paketnachprüfung der Version 1.0.6 sind fundfrei. Der reguläre Neubau enthält die korrigierte Shortcut-Suche; alle 14 Kontroll- und Nutzdateien stimmen mit den Quellen überein. Abschließende Astra-6-xhigh-Nachbindung ist fundfrei.
 - Quell-SHA256: `3d81ccfea7b166dd814e168087f4a69bcb52c46e5e5c6b13adbf9016aa01cba8`; DEB-SHA256: `18543fcc960f49133ecc2f42aad3c2bff4a2e8479fb7cab1d621d81ae2d624d2`.
+- Die laufende Benutzer-Shell PID 3848 verwendet weiterhin vor der Installation geladene Sperrmodule. Der neue CLI-Aufruf und `disable-lock-screen=false` führen mit diesen alten Modulen zum lokalen GNOME-Entsperrdialog mit Wallpaper und Blur. Theme-CSS und Login-Positionierung sind gegenüber der vorherigen Basis byteidentisch. Zwei unabhängige lesende Nachprüfungen bestätigen den Mischzustand. Die Abnahme des direkten minimalistischen Greeter-Wechsels erfordert eine vom Betreiber neu gestartete Shell-Sitzung; geladene Module werden nicht im laufenden Prozess ersetzt und der vollständige Sitzungsverschluss bleibt erhalten.
