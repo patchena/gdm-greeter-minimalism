@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-version="1.0.4"
+version="1.0.6"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(readlink -f "${script_dir}/..")"
 release_dir="${project_root}/release/v${version}"
@@ -20,6 +20,7 @@ install -m644 "${project_root}/packaging/triggers" "${debian_dir}/triggers"
 install -m755 "${project_root}/packaging/postinst" "${debian_dir}/postinst"
 install -m755 "${project_root}/packaging/prerm" "${debian_dir}/prerm"
 install -m755 "${project_root}/scripts/gdm-greeter-minimalism.sh" "${binary_dir}/gdm-greeter-minimalism"
+install -D -m755 "${project_root}/scripts/overlay-extension.py" "${package_root}/usr/lib/gdm-greeter-minimalism/run-overlay-extension"
 install -m644 "${project_root}/packaging/gdm-greeter-minimalism-notify.desktop" "${autostart_dir}/gdm-greeter-minimalism-notify.desktop"
 install -m644 "${project_root}/packaging/copyright" "${doc_dir}/copyright"
 install -m644 "${project_root}/README.md" "${doc_dir}/README.md"

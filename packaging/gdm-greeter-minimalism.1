@@ -1,4 +1,4 @@
-.TH GDM-GREETER-MINIMALISM 1 "2026-09-04" "gdm-greeter-minimalism 1.0.4" "Benutzerbefehle"
+.TH GDM-GREETER-MINIMALISM 1 "2026-10-01" "gdm-greeter-minimalism 1.0.6" "Benutzerbefehle"
 .SH NAME
 gdm-greeter-minimalism \- minimalistische GDM-Oberfläche verwalten
 .SH SYNOPSIS
@@ -24,7 +24,7 @@ Erzeugt und prüft ein zur installierten GNOME-Shell-Version passendes Overlay u
 Prüft Overlay, GDM-Integration, dconf-Werte und die verwaltete Super+L-Belegung.
 .TP
 .B lock
-Wechselt zu einer bestehenden GDM-Anmeldesitzung oder erzeugt bei Bedarf eine neue.
+Sperrt die GNOME-Sitzung vollständig über die synchrone ScreenSaver-D-Bus-Anforderung und aktiviert anschließend eine vorhandene GDM-Anmeldesitzung oder erzeugt bei Bedarf eine neue. Die reguläre GDM-Authentisierung entsperrt die bestehende Sitzung. Autologin bleibt unverändert.
 .TP
 .B restore
 Entfernt die Systemintegration und stellt die gesicherten dconf- und Benutzereinstellungen wieder her.
@@ -39,10 +39,12 @@ neu. Laufende grafische Sitzungen werden dadurch beendet.
 Das installierte Debian-Paket registriert gezielte dpkg-Trigger für GDM- und GNOME-Shell-Ressourcen.
 Ein neuer Overlay-Kandidat wird vollständig geprüft, bevor der stabile Aktivpfad atomar umgeschaltet wird.
 .PP
-Bei Inkompatibilität wird ein geprüftes Stock-Overlay aktiviert und die eigene Startintegration entfernt.
+Ohne registrierte Erweiterung wird bei Inkompatibilität ein geprüftes Stock-Overlay aktiviert und die eigene Startintegration entfernt.
 Der Paketvorgang meldet einen Fehler.
 Beim nächsten Login in die normale GNOME-Desktopsitzung erhält der verwaltete Benutzer einmalig eine Benachrichtigung für diesen Fehlerzustand. Der GDM-Login- und Unlock-Modus zeigt keine Benachrichtigungen.
 GDM wird durch den Trigger nicht neu gestartet.
+.PP
+Eine optionale Erweiterung unter /usr/lib/gdm-greeter-minimalism/overlay-extension wird vor Aktivierung vorbereitet und danach bestätigt. Bei registrierter Erweiterung bleibt ein Fehler sichtbar; die Erweiterung wird nicht durch eine Stock-Aktivierung verworfen. Vor der Veröffentlichung bleibt die bisherige Generation erhalten. Erweiterungen sind keine Paketabhängigkeit.
 .SH DATEIEN
 .TP
 .I /usr/local/share/gnome-shell-overrides/greeter-controls/active

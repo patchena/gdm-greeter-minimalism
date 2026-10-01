@@ -1,3 +1,18 @@
+gdm-greeter-minimalism (1.0.6) unstable; urgency=medium
+
+  * Complete GNOME session locking, D-Bus delivery and suspend handling.
+  * Validate drop-ins, preserve backups and restore installed settings safely.
+  * Bound extension output and clean up provider processes on every exit.
+  * Declare required D-Bus session and privilege tools.
+
+ -- patchena <patchena@proton.me>  Thu, 01 Oct 2026 13:58:27 +0300
+
+gdm-greeter-minimalism (1.0.5) unstable; urgency=medium
+
+  * Preserve optional overlay extensions during package refreshes.
+
+ -- patchena <patchena@proton.me>  Thu, 01 Oct 2026 04:32:38 +0300
+
 gdm-greeter-minimalism (1.0.4) unstable; urgency=medium
 
   * Disable all greeter system sounds.

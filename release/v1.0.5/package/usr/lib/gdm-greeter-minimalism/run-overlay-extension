@@ -1,0 +1,84 @@
+#!/usr/bin/python3 -I
+import os
+from pathlib import Path
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+
+
+def trusted(path: Path, directory: bool) -> None:
+    if not path.is_absolute() or path.resolve(strict=True) != path:
+        raise ValueError(f"Noncanonical extension path: {path}")
+    for item in (*reversed(path.parents), path):
+        info = item.lstat()
+        expected_directory = item != path or directory
+        correct_type = stat.S_ISDIR(info.st_mode) if expected_directory else stat.S_ISREG(info.st_mode)
+        if not correct_type or info.st_uid != 0 or info.st_gid != 0 or info.st_mode & 0o022:
+            raise ValueError(f"Untrusted extension path: {item}")
+        if not expected_directory and info.st_nlink != 1:
+            raise ValueError(f"Linked extension file: {item}")
+
+
+def release(path: Path, releases: Path) -> None:
+    trusted(releases, True)
+    trusted(path, True)
+    if path.parent != releases:
+        raise ValueError("Extension release must be a direct child of releases")
+    for item in path.rglob("*"):
+        trusted(item, item.is_dir())
+
+
+def main() -> None:
+    mode, provider_text, releases_text, target_text = sys.argv[1:]
+    if mode not in ("prepare", "commit"):
+        raise ValueError("Unknown extension operation")
+    provider = Path(provider_text)
+    releases = Path(releases_text)
+    target = Path(target_text)
+    trusted(provider, False)
+    if not os.access(provider, os.X_OK):
+        raise ValueError("Extension provider is not executable")
+    release(target, releases)
+    with tempfile.TemporaryFile() as output:
+        process = subprocess.Popen(
+            [str(provider), mode, str(target)],
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            env={**os.environ, "PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C.UTF-8", "GGM_OVERLAY_LOCK_FD": "9"},
+            close_fds=False,
+            start_new_session=True,
+        )
+        try:
+            code = process.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise ValueError("Extension operation exceeded 60 seconds") from None
+        if code:
+            raise ValueError(f"Extension {mode} failed with status {code}")
+        output.seek(0)
+        data = output.read(4097)
+    if mode == "commit":
+        if data:
+            raise ValueError("Extension commit must not produce stdout")
+        return
+    if not data.endswith(b"\n") or data.count(b"\n") != 1 or len(data) > 4096:
+        raise ValueError("Extension prepare must return exactly one release path")
+    text = data[:-1].decode("utf-8", errors="strict")
+    if "\r" in text or "\x00" in text:
+        raise ValueError("Invalid extension release path")
+    result = Path(text)
+    if str(result) != text:
+        raise ValueError("Noncanonical extension release output")
+    release(result, releases)
+    print(result)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError) as error:
+        print(f"Overlay extension: {error}", file=sys.stderr)
+        sys.exit(1)

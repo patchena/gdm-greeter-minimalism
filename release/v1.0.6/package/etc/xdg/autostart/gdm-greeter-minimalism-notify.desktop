@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=GDM Greeter Minimalism Status
+Exec=/usr/bin/gdm-greeter-minimalism notify
+OnlyShowIn=GNOME;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

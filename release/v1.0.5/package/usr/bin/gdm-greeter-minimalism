@@ -12,7 +12,7 @@ overlay_base="/usr/local/share/gnome-shell-overrides/greeter-controls"
 overlay_releases="${overlay_base}/releases"
 stock_releases="${overlay_base}/stock-releases"
 overlay_root="${overlay_base}/active"
-overlay_revision="4"
+overlay_revision="3"
 overlay_extension="/usr/lib/gdm-greeter-minimalism/overlay-extension"
 overlay_extension_runner="/usr/lib/gdm-greeter-minimalism/run-overlay-extension"
 runtime_root="/var/lib/gdm-greeter-minimalism"
@@ -140,7 +140,7 @@ die() {
 
 lock_to_greeter() {
     command -v gjs >/dev/null 2>&1 || die "gjs fehlt."
-    gjs -c "const Gio = imports.gi.Gio; Gio.DBus.session.call_sync('org.gnome.ScreenSaver', '/org/gnome/ScreenSaver', 'org.gnome.ScreenSaver', 'Lock', null, null, Gio.DBusCallFlags.NONE, -1, null);"
+    gjs -c "const Gdm = imports.gi.Gdm; if (!Gdm.goto_login_session_sync(null)) throw new Error('GDM-Anmeldesitzung konnte nicht aktiviert werden.');"
 }
 
 prompt_action() {
@@ -390,10 +390,6 @@ overlay_screen_shield_file() {
     printf '%s/ui/screenShield.js\n' "${overlay_root}"
 }
 
-overlay_shell_dbus_file() {
-    printf '%s/ui/shellDBus.js\n' "${overlay_root}"
-}
-
 overlay_unlock_file() {
     printf '%s/ui/unlockDialog.js\n' "${overlay_root}"
 }
@@ -468,10 +464,10 @@ write_runtime_state() {
     resolve_managed_user
     [[ -n "${resolved_target_user}" ]] || die "Kein verwalteter Benutzer ermittelt."
 
-    install -d -m755 "${runtime_root}" "${candidate_root}" "${overlay_base}" "${overlay_releases}" "${stock_releases}" || die "Runtime-Verzeichnisse konnten nicht vorbereitet werden."
-    printf '%s\n' "${resolved_target_user}" >"${target_user_state}" || die "Zielbenutzer konnte nicht gespeichert werden."
-    printf '%s\n' "enabled" >"${enabled_state}" || die "Aktivierungsstatus konnte nicht gespeichert werden."
-    chmod 644 "${target_user_state}" "${enabled_state}" || die "Runtime-Statusrechte konnten nicht gesetzt werden."
+    install -d -m755 "${runtime_root}" "${candidate_root}" "${overlay_base}" "${overlay_releases}" "${stock_releases}"
+    printf '%s\n' "${resolved_target_user}" >"${target_user_state}"
+    printf '%s\n' "enabled" >"${enabled_state}"
+    chmod 644 "${target_user_state}" "${enabled_state}"
 }
 
 overlay_fingerprint() {
@@ -526,13 +522,14 @@ stock_fingerprint() {
     local active_theme
     active_theme="$(active_theme_path)"
 
-    python3 - "${shell_resource}" "${active_theme}" "${overlay_revision}" <<'PY'
+    python3 - "${shell_resource}" "${active_theme}" <<'PY'
 import hashlib
 import pathlib
 import sys
 
 digest = hashlib.sha256()
-for content in (sys.argv[3].encode(), *(path.read_bytes() for path in map(pathlib.Path, sys.argv[1:3]))):
+for path in map(pathlib.Path, sys.argv[1:]):
+    content = path.read_bytes()
     digest.update(len(content).to_bytes(8, "big"))
     digest.update(content)
 print(digest.hexdigest()[:24])
@@ -719,7 +716,6 @@ resolve_input_sources() {
 }
 
 backup_user_shortcut() {
-    local shortcut_path="$1"
     resolve_target_user
     [[ -n "${resolved_target_user}" ]] || die "Kein aufrufender Benutzer fuer Super+L ermittelt."
 
@@ -740,18 +736,13 @@ PY
         return 0
     fi
 
-    local screensaver disable_lock_screen custom_keybindings name command binding
-    local schema="org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:${shortcut_path}"
-    screensaver="$(user_gsettings_get "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys screensaver)" || die "Screensaver-Belegung konnte nicht gesichert werden."
-    disable_lock_screen="$(user_gsettings_get "${resolved_target_user}" org.gnome.desktop.lockdown disable-lock-screen)" || die "Lockdown-Einstellung konnte nicht gesichert werden."
-    custom_keybindings="$(user_gsettings_get "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys custom-keybindings)" || die "Shortcut-Liste konnte nicht gesichert werden."
-    name="$(user_gsettings_get "${resolved_target_user}" "${schema}" name)" || die "Shortcut-Name konnte nicht gesichert werden."
-    command="$(user_gsettings_get "${resolved_target_user}" "${schema}" command)" || die "Shortcut-Befehl konnte nicht gesichert werden."
-    binding="$(user_gsettings_get "${resolved_target_user}" "${schema}" binding)" || die "Shortcut-Belegung konnte nicht gesichert werden."
-
-    python3 - "${user_shortcut_state}" "${resolved_target_user}" "${shortcut_path}" \
-        "${screensaver}" "${disable_lock_screen}" "${custom_keybindings}" \
-        "${name}" "${command}" "${binding}" <<'PY'
+    python3 - "${user_shortcut_state}" "${resolved_target_user}" "${user_shortcut_path}" \
+        "$(user_gsettings_get "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys screensaver)" \
+        "$(user_gsettings_get "${resolved_target_user}" org.gnome.desktop.lockdown disable-lock-screen)" \
+        "$(user_gsettings_get "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys custom-keybindings)" \
+        "$(user_gsettings_get "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:${user_shortcut_path} name)" \
+        "$(user_gsettings_get "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:${user_shortcut_path} command)" \
+        "$(user_gsettings_get "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:${user_shortcut_path} binding)" <<'PY'
 import json
 import pathlib
 import sys
@@ -770,29 +761,28 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps(state), encoding="utf-8")
 PY
 }
 
-gvariant_json() {
-    gjs -c 'const GLib = imports.gi.GLib; const value = GLib.Variant.parse(new GLib.VariantType(ARGV[0]), ARGV[1], null, null); print(JSON.stringify(value.deep_unpack()));' "$1" "$2" || die "Ungültiger GSettings-Wert."
-}
-
 list_custom_keybinding_paths() {
-    local custom_keybindings
-    custom_keybindings="$(gvariant_json as "$1")" || die "Ungültige Shortcut-Liste."
+    local custom_keybindings="$1"
 
     python3 - "${custom_keybindings}" <<'PY'
-import json
+import ast
 import sys
 
-for path in json.loads(sys.argv[1]):
+for path in ast.literal_eval(sys.argv[1]):
     print(path)
 PY
 }
 
 binding_contains_super_l() {
-    local binding
-    local matches
-    binding="$(gvariant_json s "$1")" || return 2
-    matches="$(gjs -c 'imports.gi.versions.Gtk = "4.0"; const Gtk = imports.gi.Gtk; const value = JSON.parse(ARGV[0]); const [valid, key, modifiers] = Gtk.accelerator_parse(value); const [, expectedKey, expectedModifiers] = Gtk.accelerator_parse("<Super>l"); if (!valid && value !== "") throw new Error("Ungültige Shortcut-Belegung"); print(valid && key === expectedKey && modifiers === expectedModifiers);' "${binding}")" || return 2
-    [[ "${matches}" == true ]]
+    local binding="$1"
+
+    python3 - "${binding}" <<'PY' >/dev/null
+import ast
+import sys
+
+bindings = ast.literal_eval(sys.argv[1])
+raise SystemExit(0 if "<Super>l" in bindings else 1)
+PY
 }
 
 find_super_l_shortcut() {
@@ -801,34 +791,26 @@ find_super_l_shortcut() {
     local current_path
     local binding
     local command
-    local paths
-    local match=""
 
     custom_keybindings="$(user_gsettings_get "${target_user}" org.gnome.settings-daemon.plugins.media-keys custom-keybindings)"
-    paths="$(list_custom_keybinding_paths "${custom_keybindings}")" || return 2
 
     while IFS= read -r current_path; do
         [[ -n "${current_path}" ]] || continue
-        binding="$(user_gsettings_get "${target_user}" "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:${current_path}" binding)" || return 2
+        binding="$(user_gsettings_get "${target_user}" "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:${current_path}" binding)"
         if binding_contains_super_l "${binding}"; then
-            command="$(user_gsettings_get "${target_user}" "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:${current_path}" command)" || return 2
-            if [[ -n "${match}" ]]; then
-                printf 'Super+L ist mehrfach belegt: %s und %s\n' "${match%%$'\t'*}" "${current_path}" >&2
-                return 2
-            fi
-            match="${current_path}"$'\t'"${command}"
-        else
-            [[ "$?" -eq 1 ]] || return 2
+            command="$(user_gsettings_get "${target_user}" "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:${current_path}" command)"
+            printf '%s\t%s\n' "${current_path}" "${command}"
+            return 0
         fi
-    done <<<"${paths}"
+    done < <(list_custom_keybinding_paths "${custom_keybindings}")
 
-    [[ -n "${match}" ]] || return 1
-    printf '%s\n' "${match}"
+    return 1
 }
 
 apply_user_shortcut() {
     resolve_managed_user
     [[ -n "${resolved_target_user}" ]] || die "Kein verwalteter Benutzer für Super+L ermittelt."
+    backup_user_shortcut
 
     local custom_keybindings
     local merged_custom_keybindings
@@ -840,22 +822,17 @@ apply_user_shortcut() {
     if existing_super_l="$(find_super_l_shortcut "${resolved_target_user}")"; then
         existing_path="${existing_super_l%%$'\t'*}"
         existing_command="${existing_super_l#*$'\t'}"
-    else
-        [[ "$?" -eq 1 ]] || die "Super+L-Belegung konnte nicht gelesen werden."
     fi
 
     if [[ -n "${existing_path}" ]] && [[ "${existing_command}" != "${greeter_command_setting}" ]] && [[ "${existing_command}" != "${previous_greeter_command_setting}" ]]; then
         die "Super+L ist bereits belegt: ${existing_path} -> ${existing_command}"
     fi
 
-    local shortcut_path="${existing_path:-${user_shortcut_path}}"
-    backup_user_shortcut "${shortcut_path}"
-    custom_keybindings="$(gvariant_json as "${custom_keybindings}")" || die "Ungültige Shortcut-Liste."
     merged_custom_keybindings="$(python3 - "${custom_keybindings}" "${user_shortcut_path}" "${existing_path}" <<'PY'
-import json
+import ast
 import sys
 
-current = json.loads(sys.argv[1])
+current = ast.literal_eval(sys.argv[1])
 managed = sys.argv[2]
 existing = sys.argv[3]
 if not existing and managed not in current:
@@ -865,7 +842,8 @@ PY
 )"
 
     user_gsettings_set "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys screensaver "@as []"
-    user_gsettings_set "${resolved_target_user}" org.gnome.desktop.lockdown disable-lock-screen "false"
+    user_gsettings_set "${resolved_target_user}" org.gnome.desktop.lockdown disable-lock-screen "true"
+    local shortcut_path="${existing_path:-${user_shortcut_path}}"
 
     if [[ -z "${existing_path}" ]] || [[ "${existing_path}" == "${user_shortcut_path}" ]]; then
         user_gsettings_set "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys custom-keybindings "${merged_custom_keybindings}"
@@ -1163,12 +1141,8 @@ remove_greeter_sound_theme() {
         rm -f "${greeter_sound_theme_dir}/stereo/${event}.disabled"
     done
     rm -f "${greeter_sound_theme_dir}/index.theme"
-    if [[ -d "${greeter_sound_theme_dir}/stereo" ]]; then
-        rmdir "${greeter_sound_theme_dir}/stereo" || die "Sound-Ereignisverzeichnis konnte nicht entfernt werden."
-    fi
-    if [[ -d "${greeter_sound_theme_dir}" ]]; then
-        rmdir "${greeter_sound_theme_dir}" || die "Sound-Theme-Verzeichnis konnte nicht entfernt werden."
-    fi
+    rmdir "${greeter_sound_theme_dir}/stereo"
+    rmdir "${greeter_sound_theme_dir}"
 }
 
 backup_gdm_input_sources() {
@@ -1195,7 +1169,7 @@ for name, key in keys.items():
         capture_output=True,
         check=False,
     )
-    if proc.returncode != 0:
+    if proc.returncode not in (0, 1):
         raise SystemExit(proc.stderr.strip() or f"dconf read fehlgeschlagen: {key}")
     value = proc.stdout.strip()
     state[name] = value if value else None
@@ -1242,7 +1216,7 @@ for name, key in keys.items():
         capture_output=True,
         check=False,
     )
-    if proc.returncode != 0:
+    if proc.returncode not in (0, 1):
         raise SystemExit(proc.stderr.strip() or f"dconf read fehlgeschlagen: {key}")
     value = proc.stdout.strip()
     state[name] = value if value else None
@@ -1282,7 +1256,7 @@ proc = subprocess.run(
     capture_output=True,
     check=False,
 )
-if proc.returncode != 0:
+if proc.returncode not in (0, 1):
     raise SystemExit(proc.stderr.strip() or f"dconf read fehlgeschlagen: {key}")
 
 value = proc.stdout.strip()
@@ -1296,7 +1270,6 @@ apply_gdm_accent() {
 }
 
 restore_gdm_input_sources() {
-    [[ -f "${gdm_input_state}" ]] || return 0
     python3 - "${gdm_input_state}" <<'PY'
 import json
 import pathlib
@@ -1310,7 +1283,10 @@ keys = {
     "xkb-options": "/org/gnome/desktop/input-sources/xkb-options",
 }
 
-state = json.loads(state_path.read_text(encoding="utf-8"))
+if state_path.exists():
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+else:
+    state = {name: None for name in keys}
 
 for name, key in keys.items():
     value = state.get(name)
@@ -1327,7 +1303,6 @@ PY
 }
 
 restore_gdm_background() {
-    [[ -f "${gdm_background_state}" ]] || return 0
     python3 - "${gdm_background_state}" <<'PY'
 import json
 import pathlib
@@ -1348,7 +1323,10 @@ keys = {
     "background-size": "/com/ubuntu/login-screen/background-size",
 }
 
-state = json.loads(state_path.read_text(encoding="utf-8"))
+if state_path.exists():
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+else:
+    state = {name: None for name in keys}
 
 for name, key in keys.items():
     value = state.get(name)
@@ -1365,7 +1343,6 @@ PY
 }
 
 restore_gdm_accent() {
-    [[ -f "${gdm_accent_state}" ]] || return 0
     python3 - "${gdm_accent_state}" <<'PY'
 import json
 import pathlib
@@ -1375,7 +1352,10 @@ import sys
 state_path = pathlib.Path(sys.argv[1])
 key = "/org/gnome/desktop/interface/accent-color"
 
-state = json.loads(state_path.read_text(encoding="utf-8"))
+if state_path.exists():
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+else:
+    state = {"accent-color": None}
 
 value = state.get("accent-color")
 if value is None:
@@ -1521,7 +1501,7 @@ write_overlay_sources() {
         [[ -n "${target_home}" ]] || die "Home-Verzeichnis für ${resolved_target_user} nicht ermittelt."
     fi
 
-    install -d -m755 "${target_root}/ui" "${target_root}/gdm" "${target_root}/misc" "${target_root}/theme" || die "Overlay-Verzeichnisse konnten nicht vorbereitet werden."
+    install -d -m755 "${target_root}/ui" "${target_root}/gdm" "${target_root}/misc" "${target_root}/theme"
 
     python3 - "${shell_resource}" "${active_theme}" "${target_root}" "${greeter_background_color}" "${target_home}" "${local_default_theme_preset}" "${greeter_focus_accent_color}" "${greeter_focus_accent_fg_color}" <<'PY'
 import hashlib
@@ -1673,22 +1653,9 @@ system_actions = replace_once(
 )
 system_actions = replace_once(
     system_actions,
-    """        if (Main.screenShield) {
-            Main.screenShield.lock(false);
-
-            Clutter.threads_add_repaint_func(Clutter.RepaintFlags.POST_PAINT, () => {
-                Gdm.goto_login_session_sync(null);
-                return false;
-            });
-        } else
-            this._lightdmLoginSession();
-""",
-    """        if (Main.screenShield)
-            Main.screenShield.switchToGreeter(false);
-        else
-            this._lightdmLoginSession();
-""",
-    "systemActions.js:activateSwitchUser",
+    """    activateLockScreen() {\n        if (!this._actions.get(LOCK_SCREEN_ACTION_ID).available)\n            throw new Error('The lock-screen action is not available!');\n\n        if (Main.screenShield)\n            Main.screenShield.lock(true);\n        else\n            this._lightdmLoginSession();\n    }\n""",
+    """    activateLockScreen() {\n        if (!this._actions.get(LOCK_SCREEN_ACTION_ID).available)\n            throw new Error('The lock-screen action is not available!');\n\n        if (Main.screenShield?.switchToGreeter)\n            Main.screenShield.switchToGreeter();\n        else\n            this._lightdmLoginSession();\n    }\n""",
+    "systemActions.js:activateLockScreen",
 )
 
 screen_shield = extract("/org/gnome/shell/ui/screenShield.js")
@@ -1700,167 +1667,15 @@ screen_shield = replace_once(
 )
 screen_shield = replace_once(
     screen_shield,
-    "    lock(animate) {\n",
-    """    lock(animate) {
-        if (Main.sessionMode.isGreeter) {
-            this._lockSession(animate);
-            return Promise.resolve();
-        }
-        return this.switchToGreeter(animate);
-    }
-
-    switchToGreeter(animate = true) {
-        if (Main.sessionMode.isGreeter) {
-            const request = Promise.reject(new Error('Cannot switch from the greeter'));
-            request.catch(logError);
-            return request;
-        }
-        if (this._greeterSwitchDone && this._isLocked && !this._greeterUnlocking)
-            return Promise.resolve();
-        if (!this._greeterSwitchPromise) {
-            this._greeterSwitchPromise = Promise.resolve()
-                .then(() => this._lockAndSwitch(animate))
-                .finally(() => {
-                    this._greeterSwitchPromise = null;
-                });
-            this._greeterSwitchPromise.catch(logError);
-        }
-        return this._greeterSwitchPromise;
-    }
-
-    async _lockAndSwitch(animate) {
-        let shownId = 0;
-        let lockedId = 0;
-        let repaintId = 0;
-        let timeoutId = 0;
-        let deactivatedId = 0;
-        try {
-            await new Promise((resolve, reject) => {
-                let lockReturned = false;
-                let lockStarted = false;
-                const ready = () => {
-                    if (!lockReturned || repaintId ||
-                        this._lockScreenState !== MessageTray.State.SHOWN)
-                        return;
-                    repaintId = Clutter.threads_add_repaint_func(
-                        Clutter.RepaintFlags.POST_PAINT, () => {
-                            repaintId = 0;
-                            resolve();
-                            return false;
-                        });
-                    global.stage.queue_redraw();
-                };
-                shownId = this.connect('lock-screen-shown', ready);
-                lockedId = this.connect('locked-changed', () => {
-                    if (lockStarted && !this._isLocked)
-                        reject(new Error('Session unlocked before the greeter switch'));
-                });
-                timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 15000, () => {
-                    timeoutId = 0;
-                    reject(new Error('Session lock did not reach a painted shield'));
-                    return GLib.SOURCE_REMOVE;
-                });
-                const startLock = () => {
-                    lockStarted = true;
-                    try {
-                        this._lockSession(animate);
-                        lockReturned = true;
-                        if (!this._isLocked || !this._grab || !this.actor.visible)
-                            reject(new Error('Session could not be locked'));
-                        else
-                            ready();
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
-                if (this._greeterUnlocking) {
-                    deactivatedId = this.connect('deactivated', () => {
-                        this.disconnect(deactivatedId);
-                        deactivatedId = 0;
-                        startLock();
-                    });
-                } else {
-                    startLock();
-                }
-            });
-            if (!this._isLocked || !this._grab || !this.actor.visible || this._greeterUnlocking ||
-                this._lockScreenState !== MessageTray.State.SHOWN)
-                throw new Error('Session is not fully locked');
-            if (!Gdm.goto_login_session_sync(null))
-                throw new Error('GDM login session could not be activated');
-            this._greeterSwitchDone = true;
-        } finally {
-            if (shownId)
-                this.disconnect(shownId);
-            if (lockedId)
-                this.disconnect(lockedId);
-            if (repaintId)
-                Clutter.threads_remove_repaint_func(repaintId);
-            if (timeoutId)
-                GLib.source_remove(timeoutId);
-            if (deactivatedId)
-                this.disconnect(deactivatedId);
-        }
-    }
-
-    _lockSession(animate) {
-""",
+    """    _prepareForSleep(loginManager, aboutToSuspend) {\n        if (aboutToSuspend) {\n            this._dialog?.cancel();\n            if (this._settings.get_boolean(SUSPEND_LOCK_ENABLED_KEY))\n                this.lock(true);\n        } else {\n            this._wakeUpScreen();\n        }\n    }\n""",
+    """    switchToGreeter() {\n        if (Main.sessionMode.isGreeter || this._greeterSwitchTimeoutId)\n            return;\n\n        this._greeterSwitchTimeoutId = GLib.timeout_add(\n            GLib.PRIORITY_DEFAULT,\n            1000,\n            () => {\n                this._greeterSwitchTimeoutId = 0;\n                return GLib.SOURCE_REMOVE;\n            });\n        St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, '');\n        St.Clipboard.get_default().set_text(St.ClipboardType.PRIMARY, '');\n        try {\n            if (!Gdm.goto_login_session_sync(null))\n                throw new Error('GDM login session could not be activated');\n            this.emit('lock-screen-shown');\n        } catch (error) {\n            logError(error);\n        }\n    }\n\n    _prepareForSleep(loginManager, aboutToSuspend) {\n        if (aboutToSuspend) {\n            this._dialog?.cancel();\n            if (this._settings.get_boolean(SUSPEND_LOCK_ENABLED_KEY))\n                this.lock(true);\n        } else {\n            this._wakeUpScreen();\n        }\n    }\n""",
+    "screenShield.js:prepareForSleep",
+)
+screen_shield = replace_once(
+    screen_shield,
+    """    lock(animate) {\n        if (this._lockSettings.get_boolean(DISABLE_LOCK_KEY)) {\n            log('Screen lock is locked down, not locking'); // lock, lock - who's there?\n            return;\n        }\n\n        this._becomeModal();\n""",
+    """    lock(animate) {\n        if (this._lockSettings.get_boolean(DISABLE_LOCK_KEY)) {\n            this.switchToGreeter();\n            return;\n        }\n\n        this._becomeModal();\n""",
     "screenShield.js:lock",
-)
-screen_shield = replace_once(
-    screen_shield,
-    "    _setLocked(locked) {\n",
-    """    _setLocked(locked) {
-        if (!locked)
-            this._greeterSwitchDone = false;
-""",
-    "screenShield.js:lockEpoch",
-)
-screen_shield = replace_once(
-    screen_shield,
-    "    deactivate(animate) {\n",
-    """    deactivate(animate) {
-        if (!Main.sessionMode.isGreeter) {
-            this._greeterUnlocking = true;
-            this._greeterSwitchDone = false;
-        }
-""",
-    "screenShield.js:unlockStart",
-)
-screen_shield = replace_once(
-    screen_shield,
-    "        global.set_runtime_state(LOCKED_STATE_STR, null);\n",
-    """        global.set_runtime_state(LOCKED_STATE_STR, null);
-        this._greeterUnlocking = false;
-        this.emit('deactivated');
-""",
-    "screenShield.js:unlockComplete",
-)
-
-shell_dbus = extract("/org/gnome/shell/ui/shellDBus.js")
-shell_dbus = replace_once(
-    shell_dbus,
-    """    LockAsync(parameters, invocation) {
-        const tmpId = this._screenShield.connect('lock-screen-shown', () => {
-            this._screenShield.disconnect(tmpId);
-
-            invocation.return_value(null);
-        });
-
-        this._screenShield.lock(true);
-    }
-""",
-    """    async LockAsync(parameters, invocation) {
-        try {
-            await this._screenShield.lock(true);
-        } catch (error) {
-            invocation.return_dbus_error('org.gnome.ScreenSaver.Error.Failed', error.message);
-            return;
-        }
-        invocation.return_value(null);
-    }
-""",
-    "shellDBus.js:LockAsync",
 )
 
 unlock_dialog = extract("/org/gnome/shell/ui/unlockDialog.js")
@@ -1968,7 +1783,6 @@ gdm_css = replace_once_pattern(
 (overlay_root / "ui" / "panel.js").write_text(panel, encoding="utf-8")
 (overlay_root / "misc" / "systemActions.js").write_text(system_actions, encoding="utf-8")
 (overlay_root / "ui" / "screenShield.js").write_text(screen_shield, encoding="utf-8")
-(overlay_root / "ui" / "shellDBus.js").write_text(shell_dbus, encoding="utf-8")
 (overlay_root / "ui" / "unlockDialog.js").write_text(unlock_dialog, encoding="utf-8")
 (overlay_root / "gdm" / "authPrompt.js").write_text(auth_prompt, encoding="utf-8")
 (overlay_root / "gdm" / "loginDialog.js").write_text(login_dialog, encoding="utf-8")
@@ -1977,68 +1791,22 @@ gdm_css = replace_once_pattern(
 PY
 }
 
-manage_dropin_file() {
-    local operation="$1"
-    local file="$2"
-    local owner="$3"
+write_dropin_file() {
+    local file="$1"
 
-    python3 - "${operation}" "${file}" "${owner}" "$(overlay_env)" <<'PY'
+    python3 - "${file}" "$(overlay_env)" <<'PY'
 import os
 import pathlib
-import pwd
-import secrets
 import sys
 
-operation = sys.argv[1]
-target = pathlib.Path(sys.argv[2])
-owner = pwd.getpwnam(sys.argv[3])
-content = f"[Service]\nEnvironment=G_RESOURCE_OVERLAYS={sys.argv[4]}\n".encode()
-if not target.is_absolute() or ".." in target.parts:
-    raise SystemExit(f"Ungültiger Drop-in-Pfad: {target}")
-directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-pending = None
-try:
-    for component in target.parts[1:-1]:
-        try:
-            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-        except FileNotFoundError:
-            if operation == "remove":
-                raise SystemExit(0)
-            os.mkdir(component, 0o755, dir_fd=directory)
-            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-        os.close(directory)
-        directory = child
-    if operation == "remove":
-        try:
-            os.unlink(target.name, dir_fd=directory)
-        except FileNotFoundError:
-            pass
-    elif operation == "write":
-        next_pending = f".{target.name}.ggm-{secrets.token_hex(16)}"
-        descriptor = os.open(next_pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
-        pending = next_pending
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(content)
-            stream.flush()
-            os.fchmod(stream.fileno(), 0o644)
-            os.fchown(stream.fileno(), owner.pw_uid, owner.pw_gid)
-        os.replace(pending, target.name, src_dir_fd=directory, dst_dir_fd=directory)
-        pending = None
-    else:
-        raise SystemExit(f"Ungültige Drop-in-Operation: {operation}")
-finally:
-    if pending is not None:
-        os.unlink(pending, dir_fd=directory)
-    os.close(directory)
+dropin_file = pathlib.Path(sys.argv[1])
+overlay = sys.argv[2]
+content = f"""[Service]\nEnvironment=G_RESOURCE_OVERLAYS={overlay}\n"""
+pending = dropin_file.with_name(f".{dropin_file.name}.ggm-{os.getpid()}")
+pending.write_text(content, encoding="utf-8")
+pending.chmod(0o644)
+os.replace(pending, dropin_file)
 PY
-}
-
-write_dropin_file() {
-    manage_dropin_file write "$1" "${2:-root}"
-}
-
-remove_dropin_file() {
-    manage_dropin_file remove "$1" root
 }
 
 reload_managed_user_manager() {
@@ -2053,11 +1821,15 @@ reload_managed_user_manager() {
 }
 
 write_dropins() {
+    local gdm_dir
+    gdm_dir="$(gdm_dropin_dir)"
+
+    install -d -m755 "${user_shell_dropin_dir}" "${gdm_service_dropin_dir}" "${gdm_dir}" || die "Drop-in-Verzeichnisse konnten nicht angelegt werden."
     write_dropin_file "${user_shell_dropin_file}" || die "User-Drop-in konnte nicht geschrieben werden."
     write_dropin_file "${gdm_service_dropin_file}" || die "GDM-Drop-in konnte nicht geschrieben werden."
-    write_dropin_file "$(gdm_dropin_file)" gdm || die "GDM-User-Drop-in konnte nicht geschrieben werden."
-    remove_dropin_file "${previous_global_wayland_dropin_file}" || die "Alter User-Drop-in konnte nicht entfernt werden."
-    remove_dropin_file "$(previous_gdm_wayland_dropin_file)" || die "Alter GDM-Drop-in konnte nicht entfernt werden."
+    write_dropin_file "$(gdm_dropin_file)" || die "GDM-User-Drop-in konnte nicht geschrieben werden."
+    chown -R gdm:gdm "${gdm_dir}" || die "GDM-Drop-in-Rechte konnten nicht gesetzt werden."
+    rm -f "${previous_global_wayland_dropin_file}" "$(previous_gdm_wayland_dropin_file)" || die "Alte Drop-ins konnten nicht entfernt werden."
     systemctl daemon-reload || die "Systemmanager konnte nicht neu geladen werden."
     reload_managed_user_manager || die "Benutzermanager konnte nicht neu geladen werden."
 }
@@ -2081,7 +1853,6 @@ verify_overlay_resources() {
     [[ -f "$(overlay_panel_file)" ]] || die "Overlay-Datei fehlt: $(overlay_panel_file)"
     [[ -f "$(overlay_system_actions_file)" ]] || die "Overlay-Datei fehlt: $(overlay_system_actions_file)"
     [[ -f "$(overlay_screen_shield_file)" ]] || die "Overlay-Datei fehlt: $(overlay_screen_shield_file)"
-    [[ -f "$(overlay_shell_dbus_file)" ]] || die "Overlay-Datei fehlt: $(overlay_shell_dbus_file)"
     [[ -f "$(overlay_unlock_file)" ]] || die "Overlay-Datei fehlt: $(overlay_unlock_file)"
     [[ -f "$(overlay_auth_prompt_file)" ]] || die "Overlay-Datei fehlt: $(overlay_auth_prompt_file)"
     [[ -f "$(overlay_login_file)" ]] || die "Overlay-Datei fehlt: $(overlay_login_file)"
@@ -2095,15 +1866,14 @@ verify_overlay_resources() {
     grep -F "'gdm': {" "$(overlay_session_file)" >/dev/null || die "gdm-Override fehlt."
     grep -F "Main.sessionMode.isLocked" "$(overlay_panel_file)" >/dev/null || die "panel-Override für unlock-dialog fehlt."
     grep -F "this._actions.get(LOCK_SCREEN_ACTION_ID).available = showLock;" "$(overlay_system_actions_file)" >/dev/null || die "systemActions-Lock-Button-Override fehlt."
-    grep -F "Main.screenShield.switchToGreeter(false);" "$(overlay_system_actions_file)" >/dev/null || die "systemActions-Greeter-Action-Override fehlt."
-    grep -F "switchToGreeter(animate = true)" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Greeter-Methode fehlt."
-    grep -F "this._lockSession(animate);" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Sessionsperre fehlt."
-    grep -F "return this.switchToGreeter(animate);" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Lock-Weiterleitung fehlt."
+    grep -F "Main.screenShield.switchToGreeter();" "$(overlay_system_actions_file)" >/dev/null || die "systemActions-Greeter-Action-Override fehlt."
+    grep -F "switchToGreeter()" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Greeter-Methode fehlt."
+    grep -F "Main.sessionMode.isGreeter || this._greeterSwitchTimeoutId" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Greeter-Sperre fehlt."
+    grep -F "this._lockSettings.get_boolean(DISABLE_LOCK_KEY)" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Lockdown-Override fehlt."
+    grep -F "this.switchToGreeter();" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Suspend-Greeter-Override fehlt."
     grep -F "import Gdm from 'gi://Gdm';" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-GDM-Import fehlt."
     grep -F "if (!Gdm.goto_login_session_sync(null))" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Greeter-Wechsel fehlt."
-    grep -F "return this._greeterSwitchPromise;" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Greeter-Promise fehlt."
-    grep -F "await this._screenShield.lock(true);" "$(overlay_shell_dbus_file)" >/dev/null || die "ScreenSaver-D-Bus-Lock-Promise fehlt."
-    grep -F "invocation.return_dbus_error('org.gnome.ScreenSaver.Error.Failed', error.message);" "$(overlay_shell_dbus_file)" >/dev/null || die "ScreenSaver-D-Bus-Fehlerantwort fehlt."
+    grep -F "this._greeterSwitchTimeoutId = GLib.timeout_add(" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Dedupe-Override fehlt."
     grep -F "St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, '')" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Clipboard-Override fehlt."
     grep -F "St.Clipboard.get_default().set_text(St.ClipboardType.PRIMARY, '')" "$(overlay_screen_shield_file)" >/dev/null || die "screenShield-Primary-Clipboard-Override fehlt."
     grep -F "CreateTransientDisplay" "$(overlay_screen_shield_file)" >/dev/null && die "screenShield erzeugt weiterhin transiente Displays."
@@ -2163,8 +1933,8 @@ verify_overlay_resources() {
 
     run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/sessionMode.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes(\"'gdm': {\\n        hasNotifications: false,\") || !text.includes(\"'unlock-dialog': {\\n        hasNotifications: false,\") || !text.includes(\"'user': {\") || !text.includes(\"        hasNotifications: true,\") || !text.includes(\"panelStyle: null,\") || !text.includes(\"right: ['keyboard'],\")) throw new Error('sessionMode lookup fehlgeschlagen');" || die "GResource-Prüfung fehlgeschlagen."
     run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/panel.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('Main.layoutManager.panelBox.hide();') || !text.includes('Main.sessionMode.isLocked') || text.includes('const hasVisibleItems =')) throw new Error('panel lookup fehlgeschlagen');" || die "GResource-Prüfung fehlgeschlagen."
-    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/misc/systemActions.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._actions.get(LOCK_SCREEN_ACTION_ID).available = showLock;') || !text.includes('Main.screenShield.switchToGreeter(false);') || text.includes('showLock && allowLockScreen') || !text.includes('Main.screenShield.lock(true);')) throw new Error('systemActions lookup fehlgeschlagen');" || die "GResource-Prüfung fehlgeschlagen."
-    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; for (const name of ['screenShield', 'shellDBus']) { const data = Gio.resources_lookup_data('/org/gnome/shell/ui/' + name + '.js', 0); Reflect.parse(ByteArray.toString(data.toArray()), {target: 'module'}); }" || die "GResource-Prüfung fehlgeschlagen."
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/misc/systemActions.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._actions.get(LOCK_SCREEN_ACTION_ID).available = showLock;') || !text.includes('Main.screenShield.switchToGreeter();') || text.includes('showLock && allowLockScreen') || text.includes('Main.screenShield.lock(true);')) throw new Error('systemActions lookup fehlgeschlagen');" || die "GResource-Prüfung fehlgeschlagen."
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/screenShield.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes(\"import Gdm from 'gi://Gdm';\") || !text.includes('switchToGreeter()') || !text.includes('this.switchToGreeter();') || !text.includes('Main.sessionMode.isGreeter || this._greeterSwitchTimeoutId') || !text.includes('if (!Gdm.goto_login_session_sync(null))') || !text.includes('this._greeterSwitchTimeoutId = GLib.timeout_add(') || !text.includes(\"St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, '')\") || !text.includes(\"St.Clipboard.get_default().set_text(St.ClipboardType.PRIMARY, '')\") || !text.includes('this.lock(true);') || text.includes('CreateTransientDisplay') || text.includes('Util.spawn([') || text.includes('Screen lock is locked down')) throw new Error('screenShield lookup fehlgeschlagen');" || die "GResource-Prüfung fehlgeschlagen."
     run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/ui/unlockDialog.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._activePage = this._promptBox;') || !text.includes('this._adjustment.value = 1;') || text.includes('this._showClock();\\n\\n        this.allowCancel = false;')) throw new Error('unlockDialog lookup fehlgeschlagen');" || die "GResource-Prüfung fehlgeschlagen."
     run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/gdm/authPrompt.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._userWell.set_child(null);') || !text.includes('visible: false,')) throw new Error('authPrompt lookup fehlgeschlagen');" || die "GResource-Prüfung fehlgeschlagen."
     run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; const ByteArray = imports.byteArray; const data = Gio.resources_lookup_data('/org/gnome/shell/gdm/loginDialog.js', 0); const text = ByteArray.toString(data.toArray()); if (!text.includes('this._bottomButtonGroup.hide();') || !text.includes('this._a11yMenuButton = null;') || !text.includes('const cancelVisible = this._authPrompt._entry === this._authPrompt._passwordEntry;') || !text.includes('this._authPrompt.cancelButton.reactive = cancelVisible;') || !text.includes('this._updateCancelButton();') || !text.includes('this._authPrompt.cancelButton.opacity = cancelVisible ? 255 : 0;') || !text.includes('actor === this._authPrompt') || !text.includes('centerY - anchorHeight / 2')) throw new Error('loginDialog lookup fehlgeschlagen');" || die "GResource-Prüfung fehlgeschlagen."
@@ -2223,7 +1993,7 @@ write_stock_overlay() {
     local active_theme
     active_theme="$(active_theme_path)"
 
-    install -d -m755 "${target_root}/ui" "${target_root}/gdm" "${target_root}/misc" "${target_root}/theme" || die "Stock-Verzeichnisse konnten nicht vorbereitet werden."
+    install -d -m755 "${target_root}/ui" "${target_root}/gdm" "${target_root}/misc" "${target_root}/theme"
     python3 - "${shell_resource}" "${active_theme}" "${target_root}" <<'PY'
 import pathlib
 import subprocess
@@ -2237,7 +2007,6 @@ resources = {
     "ui/panel.js": (shell_resource, "/org/gnome/shell/ui/panel.js"),
     "misc/systemActions.js": (shell_resource, "/org/gnome/shell/misc/systemActions.js"),
     "ui/screenShield.js": (shell_resource, "/org/gnome/shell/ui/screenShield.js"),
-    "ui/shellDBus.js": (shell_resource, "/org/gnome/shell/ui/shellDBus.js"),
     "ui/unlockDialog.js": (shell_resource, "/org/gnome/shell/ui/unlockDialog.js"),
     "gdm/authPrompt.js": (shell_resource, "/org/gnome/shell/gdm/authPrompt.js"),
     "gdm/loginDialog.js": (shell_resource, "/org/gnome/shell/gdm/loginDialog.js"),
@@ -2271,7 +2040,6 @@ resources = {
     "ui/panel.js": (shell_resource, "/org/gnome/shell/ui/panel.js"),
     "misc/systemActions.js": (shell_resource, "/org/gnome/shell/misc/systemActions.js"),
     "ui/screenShield.js": (shell_resource, "/org/gnome/shell/ui/screenShield.js"),
-    "ui/shellDBus.js": (shell_resource, "/org/gnome/shell/ui/shellDBus.js"),
     "ui/unlockDialog.js": (shell_resource, "/org/gnome/shell/ui/unlockDialog.js"),
     "gdm/authPrompt.js": (shell_resource, "/org/gnome/shell/gdm/authPrompt.js"),
     "gdm/loginDialog.js": (shell_resource, "/org/gnome/shell/gdm/loginDialog.js"),
@@ -2287,7 +2055,7 @@ for relative_path, (resource_file, resource_path) in resources.items():
         raise SystemExit(f"Stock-Ressource stimmt nicht überein: {relative_path}")
 PY
 
-    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; for (const path of ['/org/gnome/shell/ui/sessionMode.js', '/org/gnome/shell/ui/panel.js', '/org/gnome/shell/misc/systemActions.js', '/org/gnome/shell/ui/screenShield.js', '/org/gnome/shell/ui/shellDBus.js', '/org/gnome/shell/ui/unlockDialog.js', '/org/gnome/shell/gdm/authPrompt.js', '/org/gnome/shell/gdm/loginDialog.js', '/org/gnome/shell/theme/gdm.css']) { const data = Gio.resources_lookup_data(path, 0); if (data.get_size() === 0) throw new Error('Leere Stock-Ressource: ' + path); }" || die "GResource-Prüfung fehlgeschlagen."
+    run_gjs_check "${env_value}" "const Gio = imports.gi.Gio; for (const path of ['/org/gnome/shell/ui/sessionMode.js', '/org/gnome/shell/ui/panel.js', '/org/gnome/shell/misc/systemActions.js', '/org/gnome/shell/ui/screenShield.js', '/org/gnome/shell/ui/unlockDialog.js', '/org/gnome/shell/gdm/authPrompt.js', '/org/gnome/shell/gdm/loginDialog.js', '/org/gnome/shell/theme/gdm.css']) { const data = Gio.resources_lookup_data(path, 0); if (data.get_size() === 0) throw new Error('Leere Stock-Ressource: ' + path); }" || die "GResource-Prüfung fehlgeschlagen."
 }
 
 prepare_stock_release() {
@@ -2296,25 +2064,15 @@ prepare_stock_release() {
     local candidate
     local output
 
-    prepared_stock=""
-    if ! output="$(stock_fingerprint 2>&1)"; then
-        refresh_error="${output}"
-        return 1
-    fi
-    fingerprint="${output}"
+    fingerprint="$(stock_fingerprint)"
     release_root="${stock_releases}/${fingerprint}"
 
     if [[ -d "${release_root}" ]]; then
         if output="$(verify_stock_overlay "${release_root}" 2>&1)"; then
-            if output="$(
-                (
-                    printf '%s\n' "${release_root}" >"${stock_overlay_state}" &&
-                    chmod 644 "${stock_overlay_state}"
-                ) 2>&1
-            )"; then
-                prepared_stock="${release_root}"
-                return 0
-            fi
+            prepared_stock="${release_root}"
+            printf '%s\n' "${release_root}" >"${stock_overlay_state}"
+            chmod 644 "${stock_overlay_state}"
+            return 0
         fi
         refresh_error="${output}"
         return 1
@@ -2323,26 +2081,19 @@ prepare_stock_release() {
     candidate="${candidate_root}/stock-${fingerprint}-${BASHPID}"
     if ! output="$(
         (
-            write_stock_overlay "${candidate}" || exit "$?"
-            verify_stock_overlay "${candidate}" || exit "$?"
+            write_stock_overlay "${candidate}"
+            verify_stock_overlay "${candidate}"
         ) 2>&1
     )"; then
         refresh_error="${output}"
         return 1
     fi
 
-    if ! output="$(
-        (
-            install -d -m755 "${stock_releases}" &&
-            mv -- "${candidate}" "${release_root}" &&
-            printf '%s\n' "${release_root}" >"${stock_overlay_state}" &&
-            chmod 644 "${stock_overlay_state}"
-        ) 2>&1
-    )"; then
-        refresh_error="${output}"
-        return 1
-    fi
+    install -d -m755 "${stock_releases}"
+    mv -- "${candidate}" "${release_root}"
     prepared_stock="${release_root}"
+    printf '%s\n' "${release_root}" >"${stock_overlay_state}"
+    chmod 644 "${stock_overlay_state}"
 }
 
 switch_overlay() {
@@ -2359,11 +2110,7 @@ deactivate_system_integration() {
         prepare_stock_release || die "Stock-Overlay konnte nicht vorbereitet werden: ${refresh_error}"
     fi
     switch_overlay "${prepared_stock}"
-    remove_dropin_file "${user_shell_dropin_file}" || die "User-Drop-in konnte nicht entfernt werden."
-    remove_dropin_file "${gdm_service_dropin_file}" || die "GDM-Drop-in konnte nicht entfernt werden."
-    remove_dropin_file "$(gdm_dropin_file)" || die "GDM-User-Drop-in konnte nicht entfernt werden."
-    remove_dropin_file "${previous_global_wayland_dropin_file}" || die "Alter User-Drop-in konnte nicht entfernt werden."
-    remove_dropin_file "$(previous_gdm_wayland_dropin_file)" || die "Alter GDM-Drop-in konnte nicht entfernt werden."
+    rm -f "${user_shell_dropin_file}" "${gdm_service_dropin_file}" "$(gdm_dropin_file)" "${previous_global_wayland_dropin_file}" "$(previous_gdm_wayland_dropin_file)"
     restore_greeter_desktop_environment
     systemctl daemon-reload
     reload_managed_user_manager
@@ -2375,12 +2122,7 @@ prepare_overlay_release() {
     local candidate
     local output
 
-    prepared_overlay=""
-    if ! output="$(overlay_fingerprint 2>&1)"; then
-        refresh_error="${output}"
-        return 1
-    fi
-    fingerprint="${output}"
+    fingerprint="$(overlay_fingerprint)"
     release_root="${overlay_releases}/${fingerprint}"
 
     if [[ -d "${release_root}" ]]; then
@@ -2399,23 +2141,16 @@ prepare_overlay_release() {
     candidate="${candidate_root}/${fingerprint}-${BASHPID}"
     if ! output="$(
         (
-            write_overlay_sources "${candidate}" || exit "$?"
-            verify_overlay_resources generated "${candidate}" || exit "$?"
+            write_overlay_sources "${candidate}"
+            verify_overlay_resources generated "${candidate}"
         ) 2>&1
     )"; then
         refresh_error="${output}"
         return 1
     fi
 
-    if ! output="$(
-        (
-            install -d -m755 "${overlay_releases}" &&
-            mv -- "${candidate}" "${release_root}"
-        ) 2>&1
-    )"; then
-        refresh_error="${output}"
-        return 1
-    fi
+    install -d -m755 "${overlay_releases}"
+    mv -- "${candidate}" "${release_root}"
     prepared_overlay="${release_root}"
 }
 
@@ -2566,7 +2301,7 @@ verify_overlay() {
         screensaver_binding="$(user_gsettings_get "${resolved_target_user}" org.gnome.settings-daemon.plugins.media-keys screensaver)"
         [[ "${screensaver_binding}" == "@as []" ]] || die "Screensaver-Keybind ist nicht deaktiviert: ${screensaver_binding}"
         disable_lock_screen="$(user_gsettings_get "${resolved_target_user}" org.gnome.desktop.lockdown disable-lock-screen)"
-        [[ "${disable_lock_screen}" == "false" ]] || die "GNOME-Sessionsperre ist deaktiviert: ${disable_lock_screen}"
+        [[ "${disable_lock_screen}" == "true" ]] || die "GNOME-Lockscreen ist nicht deaktiviert: ${disable_lock_screen}"
 
         shortcut="$(find_super_l_shortcut "${resolved_target_user}" || true)"
         [[ -n "${shortcut}" ]] || die "Kein Super+L-Shortcut aktiv."

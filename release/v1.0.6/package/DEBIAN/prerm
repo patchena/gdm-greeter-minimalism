@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+    remove|deconfigure)
+        if [ -f /var/lib/gdm-greeter-minimalism/enabled ]; then
+            gdm-greeter-minimalism restore
+        fi
+        ;;
+esac
+
+exit 0

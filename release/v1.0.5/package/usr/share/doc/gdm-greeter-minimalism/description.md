@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`gdm-greeter-minimalism` configures the Ubuntu GDM greeter as a reduced login surface. The greeter has no notifications, system sounds, panel, quick settings, calendar, accessibility button, auxiliary login buttons, or user avatar. Username and password inputs are centered. The background and focus colors are neutral. `Super+L` fully locks the GNOME session before activating GDM. Normal GDM authentication unlocks the existing session; autologin remains unchanged.
+`gdm-greeter-minimalism` configures the Ubuntu GDM greeter as a reduced login surface. The greeter has no notifications, system sounds, panel, quick settings, calendar, accessibility button, auxiliary login buttons, or user avatar. Username and password inputs are centered. The background and focus colors are neutral. `Super+L` switches to the GDM greeter instead of the GNOME lock screen.
 
 The system package maintains this state across GDM and GNOME Shell package updates without automatically restarting GDM.
 
@@ -12,37 +12,31 @@ The project contains:
 
 - `/usr/bin/gdm-greeter-minimalism`: installed management command
 - `scripts/gdm-greeter-minimalism.sh`: command source
-- `/usr/lib/gdm-greeter-minimalism/run-overlay-extension`: optional extension runner
-- `scripts/overlay-extension.py`: runner source
 - `packaging/`: Debian metadata, maintainer scripts, triggers, autostart entry, and manual page
 - `scripts/build-release.sh`: versioned package builder
 - `docs/release.md`: release verification and publication procedure
-- `release/v1.0.6/`: package root and installable Debian package
+- `release/v1.0.5/`: package root and installable Debian package
 
-The package version is `1.0.6` and its architecture is `all`.
+The package version is `1.0.5` and its architecture is `all`.
 
 ## Installation
 
 Install the release package and apply the configuration:
 
 ```bash
-pkexec apt install ./release/v1.0.6/gdm-greeter-minimalism_1.0.6_all.deb
+sudo apt install ./release/v1.0.5/gdm-greeter-minimalism_1.0.5_all.deb
 gdm-greeter-minimalism apply
 ```
 
 The package depends on:
 
-- `dbus-daemon`
 - `dconf-cli`
 - `gdm3`
 - `gjs`
 - `gnome-shell`
 - `libglib2.0-bin`
 - `python3`
-- `sudo`
 - `systemd`
-
-GTK4 introspection is supplied by `gnome-shell`; Essential packages supply the base tools and an `awk` provider.
 
 The command requires:
 
@@ -108,13 +102,12 @@ It is a symlink to one validated release directory. Candidates, customized relea
 
 Before a customized overlay is evaluated, `refresh` creates or validates a stock release.
 
-Its fingerprint covers the overlay revision, installed GNOME Shell resource library and active GDM theme resource. A changed resource scope receives a new generation; existing releases remain unchanged. It contains byte-identical copies of:
+Its fingerprint covers the installed GNOME Shell resource library and active GDM theme resource. It contains byte-identical copies of:
 
 - `ui/sessionMode.js`
 - `ui/panel.js`
 - `misc/systemActions.js`
 - `ui/screenShield.js`
-- `ui/shellDBus.js`
 - `ui/unlockDialog.js`
 - `gdm/authPrompt.js`
 - `gdm/loginDialog.js`
@@ -173,7 +166,7 @@ Managed background, accent, sound, input-source, and shortcut settings remain in
 
 An optional executable at `/usr/lib/gdm-greeter-minimalism/overlay-extension` participates in every refresh. No extension package is required. The provider, its parent directories, the returned release and all release contents must be canonical, root-owned, and not group- or world-writable. Symbolic links and hard-linked files are rejected.
 
-After base resource validation, `prepare ABSOLUTE_BASE_RELEASE` must return exactly one absolute release path followed by a newline, at most 4096 bytes. The release must be a direct child of `/usr/local/share/gnome-shell-overrides/greeter-controls/releases`. The composed resources pass the same generic checks before activation. After activation and installed-resource verification, `commit ABSOLUTE_COMPOSED_RELEASE` must succeed without stdout output. Standard output is bounded while the provider runs. Each operation has a 60-second timeout; failure is reported explicitly. Completion, error, timeout and handled SIGTERM, SIGINT or SIGHUP terminate the provider process group and reap its leader.
+After base resource validation, `prepare ABSOLUTE_BASE_RELEASE` must return exactly one absolute release path followed by a newline. The release must be a direct child of `/usr/local/share/gnome-shell-overrides/greeter-controls/releases`. The composed resources pass the same generic checks before activation. After activation and installed-resource verification, `commit ABSOLUTE_COMPOSED_RELEASE` must succeed without stdout output. Each provider operation has a 60-second timeout; failure is reported explicitly.
 
 The provider inherits the held greeter lock through file descriptor 9 and `GGM_OVERLAY_LOCK_FD=9`. It must validate and reuse that descriptor, not acquire a second conflicting greeter lock. Other explicitly inheritable descriptors and the calling environment remain available. A busy greeter lock fails immediately. The provider owns any extension-specific preparation journal and verification.
 
@@ -194,7 +187,7 @@ It is written to:
 - `<gdm-home>/.config/systemd/user/org.gnome.Shell@.service.d/90-disable-greeter-controls.conf`
 - the `Exec=` line in `/usr/share/gdm/greeter/wayland-sessions/gnome-greeter.desktop`
 
-The desktop and drop-in files are replaced atomically. Drop-in creation and removal use directory descriptors without following symbolic links. Ownership changes affect only newly created files, not existing directory contents. The system manager and the available managed user manager are reloaded after drop-in changes. The generic system-wide template drop-in applies the lock behavior to every desktop user after the respective user manager starts or reloads it. An already running desktop shell requires a logout or reboot before it uses a newly installed overlay.
+The desktop and drop-in files are replaced atomically. The system manager and the available managed user manager are reloaded after drop-in changes. The generic system-wide template drop-in applies the lock behavior to every desktop user after the respective user manager starts or reloads it. An already running desktop shell requires a logout or reboot before it uses a newly installed overlay.
 
 ## Runtime State
 
@@ -235,21 +228,15 @@ Generated overlay releases remain after restore but are inactive.
 
 ## Lock Behavior
 
-The CLI synchronously calls `org.gnome.ScreenSaver.Lock`. `systemActions.js` uses the common Shell locking path for lock and user-switch actions.
+`systemActions.js` exposes the lock action outside locked and greeter modes and calls `Main.screenShield.switchToGreeter()`.
 
 `screenShield.js`:
 
 - clears clipboard and primary selection
-- executes the complete stock GNOME session lock before switching, including modal input protection and locked state
-- shares the pending operation between concurrent calls
-- reuses an already successful greeter switch until the session is unlocked
-- waits for any current stock unlock to finish before locking again
-- limits waiting for completed unlocking and the painted shield to 15 seconds; timeout is an error, not an unlock
+- deduplicates parallel calls for one second
 - switches to an existing login session or creates one when required through `Gdm.goto_login_session_sync(null)`
-- preserves stock suspend inhibition and logind unlocking
+- routes GNOME lockdown and suspend-lock behavior to the greeter
 - rejects greeter switches from existing greeter sessions
-
-`shellDBus.js` answers each lock request after the shared operation succeeds or returns a D-Bus error. A failed GDM switch does not unlock the session. Existing GDM authentication and logind `UnlockSession` release the regular Shell lock.
 
 `unlockDialog.js` opens directly on the authentication prompt and returns failed authentication to the prompt.
 
@@ -270,7 +257,7 @@ If `<home>/.local/state/custom-yaru-theme/last-state.env` exists:
 - `target_css_sha256` is validated when present
 - `preset` identifies the source in `theme/source.env`
 
-When no custom state exists, the local `ubuntu25.10` preset transforms the installed GDM CSS to neutral gray surfaces. Its recorded source is `local:ubuntu25.10:default`. Existing invalid state, missing CSS or checksum mismatches are errors.
+Without valid custom state, the local `ubuntu25.10` preset transforms the installed GDM CSS to neutral gray surfaces. Its recorded source is `local:ubuntu25.10:default`.
 
 ## Keyboard Layout
 
@@ -326,8 +313,6 @@ The following settings are backed up:
 
 An unrelated existing `Super+L` binding aborts `apply`. The managed command and the previous package command are accepted.
 
-GTK parses the complete accelerator and compares its key and modifiers. The backup captures the actual modified shortcut path, remains unchanged across refreshes, and is written only after successful settings reads. Managed `disable-lock-screen=false` preserves GNOME session locking.
-
 ## Apply
 
 `apply` performs:
@@ -379,7 +364,7 @@ With a registered overlay extension, restore and package removal are rejected be
 10. leftover-state verification
 11. optional GDM restart
 
-The stable overlay symlink remains on validated stock resources. Customized and stock release directories remain stored but inactive. Settings without a backup are not reset to invented original values. Already absent managed sound directories are valid partial-restore states; other removal errors remain visible.
+The stable overlay symlink remains on validated stock resources. Customized and stock release directories remain stored but inactive.
 
 ## Legacy CSS Override
 
@@ -389,13 +374,12 @@ An active legacy override is detected through `#panel.login-screen > * {` in the
 
 `scripts/build-release.sh` creates:
 
-- `release/v1.0.6/package`: Debian package root
-- `release/v1.0.6/gdm-greeter-minimalism_1.0.6_all.deb`: installable package
+- `release/v1.0.5/package`: Debian package root
+- `release/v1.0.5/gdm-greeter-minimalism_1.0.5_all.deb`: installable package
 
 The package contains:
 
 - management command
-- optional extension runner
 - dpkg triggers
 - `postinst` and `prerm`
 - GNOME autostart notifier
