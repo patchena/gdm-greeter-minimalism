@@ -1,3 +1,11 @@
+gdm-greeter-minimalism (1.0.7) unstable; urgency=medium
+
+  * Replace the local unlock dialog with an opaque session shield.
+  * Remove local authentication, wallpaper, clock and notification resources.
+  * Preserve GNOME locking and painted-shield verification without animations.
+
+ -- patchena <patchena@proton.me>  Thu, 01 Oct 2026 17:37:12 +0300
+
 gdm-greeter-minimalism (1.0.6) unstable; urgency=medium
 
   * Complete GNOME session locking, D-Bus delivery and suspend handling.

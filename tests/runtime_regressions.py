@@ -164,8 +164,63 @@ assert method(generated, "deactivate").removeprefix(
 assert method(generated, "_completeDeactivate").removesuffix(
     "\n        this._greeterUnlocking = false;\n        this.emit('deactivated');"
 ) == method(stock, "_completeDeactivate")
-for name in ("_syncInhibitor", "_continueDeactivate", "_prepareForSleep"):
+assert method(generated, "_continueDeactivate").removeprefix(
+    "        if (this._lockScreenPaintId) {\n"
+    "            global.stage.disconnect(this._lockScreenPaintId);\n"
+    "            this._lockScreenPaintId = 0;\n"
+    "        }\n"
+    "        if (this._lockScreenUpdateId) {\n"
+    "            global.stage.disconnect(this._lockScreenUpdateId);\n"
+    "            this._lockScreenUpdateId = 0;\n"
+    "        }\n"
+    "        if (this._lockScreenViewsId) {\n"
+    "            global.stage.disconnect(this._lockScreenViewsId);\n"
+    "            this._lockScreenViewsId = 0;\n"
+    "        }\n"
+) == method(stock, "_continueDeactivate").replace(
+    "duration: Overview.ANIMATION_TIME,",
+    "duration: Main.sessionMode.isGreeter ? Overview.ANIMATION_TIME : 0,",
+)
+assert method(generated, "_refreshBackground").removeprefix(
+    "        if (!Main.sessionMode.isGreeter) {\n"
+    "            this._lockDialogGroup.set_style('background-color: #000;');\n"
+    "            return;\n"
+    "        }\n"
+) == method(stock, "_refreshBackground")
+assert method(generated, "_resetLockScreen").removeprefix(
+    "        if (!Main.sessionMode.isGreeter)\n"
+    "            params = {...params, animateLockScreen: false};\n"
+) == method(stock, "_resetLockScreen")
+assert method(generated, "_hideLockScreen").removeprefix(
+    "        if (!Main.sessionMode.isGreeter)\n"
+    "            animate = false;\n"
+) == method(stock, "_hideLockScreen")
+for name in ("_syncInhibitor", "_prepareForSleep", "lockIfWasLocked", "_becomeModal"):
     assert method(stock, name) == method(generated, name), name
+assert "this._lockSession(false);" in method(generated, "_lockAndSwitch")
+assert "repaintId" not in method(generated, "_lockAndSwitch")
+assert "queue_redraw" not in method(generated, "_lockAndSwitch")
+assert "const ready = () => {\n" in method(generated, "_lockAndSwitch")
+assert "this._lockScreenState !== MessageTray.State.SHOWN)\n" \
+    "                        return;\n                    resolve();" in method(generated, "_lockAndSwitch")
+assert "global.stage.connect('after-paint'" in method(generated, "_lockScreenShown")
+assert "global.stage.connect('after-update'" in method(generated, "_lockScreenShown")
+assert "stage.peek_stage_views()" in method(generated, "_lockScreenShown")
+assert "!views.length || !views.every(current => painted.has(current))" in method(generated, "_lockScreenShown")
+assert method(stock, "_lockScreenShown") == method(generated, "_completeLockScreenShown")
+assert "if (!Gdm.goto_login_session_sync(null))" in method(generated, "_lockAndSwitch")
+shield = (release / "ui/unlockDialog.js").read_text()
+for forbidden in ("AuthPrompt", "Gdm", "Background", "Clock", "Notifications", "SwipeTracker"):
+    assert forbidden not in shield, forbidden
+assert "style: 'background-color: #000;'" in shield
+assert "coordinate: Clutter.BindCoordinate.ALL" in shield
+assert "Main.pushModal(Main.uiGroup" in method(shield, "open")
+assert "Main.popModal(this._grab);" in method(shield, "popModal")
+assert "this.connect('destroy', () => this.popModal());" in shield
+assert "onComplete();" in method(shield, "finish")
+assert "this.emit('wake-up-screen');" in shield
+assert "deactivate" not in shield
+assert "_showPrompt" not in shield
 for path in release.rglob("*.js"):
     subprocess.run(
         ["gjs", "-c", "const Gio=imports.gi.Gio; const ByteArray=imports.byteArray; const [,data]=Gio.File.new_for_path(ARGV[0]).load_contents(null); Reflect.parse(ByteArray.toString(data), {target:'module'});", str(path)],

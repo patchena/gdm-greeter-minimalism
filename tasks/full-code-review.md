@@ -2,7 +2,7 @@
 
 ## Umfang und Freigaben
 
-- Vollständiger aktueller Code unter `scripts/`, `packaging/` und `tests/`, einschließlich nicht versionierter Dateien; neuer Paketbaum und DEB unter `release/v1.0.6/` werden gegen ihre Quellen geprüft.
+- Vollständiger aktueller Code unter `scripts/`, `packaging/` und `tests/`, einschließlich nicht versionierter Dateien; aktueller neuer Paketbaum und DEB unter `release/v1.0.7/` werden gegen ihre Quellen geprüft.
 - Vergleichsbasis: `6a03e40d89ca942fd29f02f858f03a38df8d9d61`.
 - Frühere versionierte Release-Artefakte bleiben unverändert; sie sind keine aktuelle Implementierungsquelle.
 - Die aktuelle Freigabe hat Vorrang vor früheren Arbeitspaketen: keine Beendigung alter Greeter-Sitzungen, keine Tags und keine GitHub-Veröffentlichung.
@@ -12,6 +12,9 @@
 - Die Validierungsinstallation erfolgt ausschließlich über die regulär gebaute `.deb`; keine Skriptkopien, Direktinstallation aus dem Quellbaum oder Ersatzinstallation.
 - Laufende Sitzungen, Autologin, Schlüssel, LUKS-Slots und Stickdaten bleiben erhalten. GDM-Neustart, Sitzungsende, produktives Restore sowie neue Tags und GitHub-Releases sind nicht freigegeben.
 - Commit und Push des abschließend geprüften Minimalism-Projekts sind freigegeben. Vor jedem Commit wird die vollständige Projektdokumentation abgeglichen.
+- Freigegeben ist ein minimaler opaker Schutz-Actor anstelle des zusätzlichen GNOME-Entsperrdialogs. Wallpaper, Blur, Uhr, Benachrichtigungen und lokale Authentifizierung werden dafür nicht erzeugt. Modalität, tatsächlicher Sperrzustand, Suspend-Sicherung, gezeichneter Schutz und legitime GDM-Entsperrung bleiben erhalten; Greeter-Design, Autologin und Stick-Authentifizierung bleiben unverändert. Neue Version, unabhängige Nachprüfung und reguläre DEB-Installation sind vorgeschrieben.
+- Nach diesem Fix wird eine systemweit reduzierte lokale Entsperrfläche ohne fest verdrahteten Benutzer bewertet. Zuerst muss der Benutzername manuell in ein leeres Feld eingegeben werden, ohne sichtbaren Namen, Avatar oder Vorauswahl. Erst danach folgt „Passwort oder Eingabe mit Schlüssel“; nur die zugehörige gesperrte Sitzung darf entsperrt werden. Auf dieser Maschine gibt es einen Desktopbenutzer; Neuanmeldung ist keine Anforderung an den Sperrweg. Diese Bewertung autorisiert keine Umstellung.
+- Die aktuelle Korrektur und anschließende Bewertung werden nach [minimal-lock-shield.md](minimal-lock-shield.md) ausgeführt.
 
 ## Modellzuordnung
 
@@ -34,8 +37,8 @@
 
 ## Stand
 
-- Vollständige Codeprüfung und abschließendes Astra-6-xhigh-Review fundfrei; installierter Minimalism-Stand 1.0.6.
-- Security-Chain-Codeprüfung ist abgeschlossen und als `d912bfb30f9ec2951788ba0c6fa4f1eaafb5eacb` gesichert. Boot 1.023 und GDM 1.001 sind regulär installiert; M2-Migration und Aktivierung sind paketvalidiert. Physische Freigaben bleiben separat offen.
+- Vollständige Codeprüfung und abschließendes Astra-6-xhigh-Review für 1.0.6 fundfrei. Die freigegebene Schutz-Actor-Korrektur ist als 1.0.7 umgesetzt, unabhängig normal und vertieft sowie abschließend fundfrei geprüft, regulär installiert und paketvalidiert. Physische Abnahme der neu geladenen Ressourcen bleibt offen; Details stehen im aktuellen AP.
+- Security-Chain-Codeprüfung ist abgeschlossen und als `d912bfb30f9ec2951788ba0c6fa4f1eaafb5eacb` gesichert; die zusätzliche Erweiterungsschnittstellenkorrektur ist separat fundfrei geprüft. Boot 1.023 und GDM 1.002 sind regulär installiert; M2-Migration und Aktivierung sind paketvalidiert. Physische Freigaben bleiben separat offen.
 
 ## Offene Prüfungen und Korrekturen
 
@@ -50,4 +53,4 @@
 - Die Super+L-Konfliktsuche prüft die vollständige Liste und lehnt fremde oder mehrdeutige exakte Treffer vor Backup und Einstellungsänderungen ab. Elf isolierte Regressiongruppen bestehen; unabhängige normale Nachprüfung einschließlich eindeutiger, fehlender und fremder Einzelbelegung ist fundfrei.
 - Dokumentations- und Paketnachprüfung der Version 1.0.6 sind fundfrei. Der reguläre Neubau enthält die korrigierte Shortcut-Suche; alle 14 Kontroll- und Nutzdateien stimmen mit den Quellen überein. Abschließende Astra-6-xhigh-Nachbindung ist fundfrei.
 - Quell-SHA256: `3d81ccfea7b166dd814e168087f4a69bcb52c46e5e5c6b13adbf9016aa01cba8`; DEB-SHA256: `18543fcc960f49133ecc2f42aad3c2bff4a2e8479fb7cab1d621d81ae2d624d2`.
-- Die laufende Benutzer-Shell PID 3848 verwendet weiterhin vor der Installation geladene Sperrmodule. Der neue CLI-Aufruf und `disable-lock-screen=false` führen mit diesen alten Modulen zum lokalen GNOME-Entsperrdialog mit Wallpaper und Blur. Theme-CSS und Login-Positionierung sind gegenüber der vorherigen Basis byteidentisch. Zwei unabhängige lesende Nachprüfungen bestätigen den Mischzustand. Die Abnahme des direkten minimalistischen Greeter-Wechsels erfordert eine vom Betreiber neu gestartete Shell-Sitzung; geladene Module werden nicht im laufenden Prozess ersetzt und der vollständige Sitzungsverschluss bleibt erhalten.
+- Boot-ID `9f6db99e-8025-4ec4-83de-2335caa57089`, Benutzer-Shell PID 3313: Geladen sind noch die Ressourcen von 1.0.6. Der Betreiber bestätigt funktionsfähige Schlüssel und den Greeter-Wechsel durch Super+L. Der reduzierte Schutz-Actor ist als 1.0.7 installiert und paketvalidiert; dessen physische Abnahme verlangt vom Betreiber neu geladene Ressourcen. Theme-CSS und Login-Positionierung sind gegen den ursprünglichen Installationsvorzustand bytegleich.
